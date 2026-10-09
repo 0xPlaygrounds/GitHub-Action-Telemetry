@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   componentProject,
+  containsJson,
   ensureGrid,
   upsertComponent,
   upsertView
@@ -92,9 +93,24 @@ describe('componentProject', () => {
       inlineQueries: true,
       captureEvents: [],
       state: ['user'],
-      actions: []
+      actions: [],
+      agentRequests: false
     })
     expect(project.component.configSchema.properties).toHaveProperty('repo')
+  })
+})
+
+describe('containsJson', () => {
+  it('ignores an extra key the stored side adds in a nested object', () => {
+    expect(containsJson({ a: { b: 1, c: 2 } }, { a: { b: 1 } })).toBe(true)
+  })
+
+  it('is false when a sent value differs from the stored value', () => {
+    expect(containsJson({ a: 1 }, { a: 2 })).toBe(false)
+  })
+
+  it('is false when an array differs between stored and sent', () => {
+    expect(containsJson({ a: [1, 2] }, { a: [1, 2, 3] })).toBe(false)
   })
 })
 
@@ -153,6 +169,82 @@ describe('upsertComponent', () => {
           }
         }
         return { current_version_id: 'v1', project: staleProject }
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        return { id: 'new' }
+      }
+    }
+    expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
+    const publishCalls = calls.filter(
+      call => call[0] === 'POST' && call[1] === '/canvases/c1/publish/'
+    )
+    expect(publishCalls).toHaveLength(1)
+  })
+
+  it('does not publish when the stored source has extra server-default fields', async () => {
+    const project = componentProject(null, settings)
+    const storedProject = {
+      ...project,
+      capabilities: {
+        ...project.capabilities,
+        posthog: { ...project.capabilities.posthog, someNewDefault: true }
+      },
+      component: {
+        ...project.component,
+        size: { ...project.component.size, maxW: 12 }
+      }
+    }
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) {
+          return {
+            results: [
+              {
+                id: 'c1',
+                name: 'Runner trade-offs',
+                kind: 'component',
+                url: 'https://x/c1'
+              }
+            ]
+          }
+        }
+        return { current_version_id: 'v1', project: storedProject }
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        return { id: 'new' }
+      }
+    }
+    expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
+    expect(calls.filter(call => call[0] === 'POST')).toEqual([])
+  })
+
+  it('publishes when the stored source has a file we no longer send', async () => {
+    const project = componentProject(null, settings)
+    const storedProject = {
+      ...project,
+      files: { ...project.files, 'src/extra.js': 'leftover' }
+    }
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) {
+          return {
+            results: [
+              {
+                id: 'c1',
+                name: 'Runner trade-offs',
+                kind: 'component',
+                url: 'https://x/c1'
+              }
+            ]
+          }
+        }
+        return { current_version_id: 'v1', project: storedProject }
       },
       post: async (path, body) => {
         calls.push(['POST', path, body])

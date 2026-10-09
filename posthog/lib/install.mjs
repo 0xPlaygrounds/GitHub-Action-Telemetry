@@ -63,7 +63,8 @@ export function componentProject(source, { windowDays, baselineLabel }) {
         inlineQueries: true,
         captureEvents: [],
         state: ['user'],
-        actions: []
+        actions: [],
+        agentRequests: false
       },
       network: { origins: [] }
     },
@@ -104,6 +105,22 @@ function sameJson(a, b) {
   return aKeys.every((key, index) => key === bKeys[index] && sameJson(a[key], b[key]))
 }
 
+// True when every key we sent is present in the stored value with an equal value: nested objects
+// recurse the same way, arrays must match exactly, and extra keys the server adds are ignored.
+export function containsJson(stored, sent) {
+  if (sent === stored) return true
+  if (
+    typeof sent !== 'object' ||
+    sent === null ||
+    typeof stored !== 'object' ||
+    stored === null
+  ) {
+    return false
+  }
+  if (Array.isArray(sent) || Array.isArray(stored)) return sameJson(stored, sent)
+  return Object.keys(sent).every(key => containsJson(stored[key], sent[key]))
+}
+
 async function findCanvas(api, channelId, kind, name) {
   const list = await api.get(
     `/canvases/?channel=${encodeURIComponent(channelId)}&kind=${kind}&limit=100`
@@ -124,8 +141,13 @@ export async function upsertComponent(api, { channelId, settings }, log = consol
     }))
   const source = await api.get(`/canvases/${canvas.id}/source/`)
   const project = componentProject(source, settings)
-  const comparedKeys = ['files', 'dependencies', 'capabilities', 'component', 'canvasSdkVersion']
-  if (source?.project && comparedKeys.every(key => sameJson(project[key], source.project[key]))) {
+  const exactKeys = ['files', 'dependencies', 'canvasSdkVersion']
+  const containedKeys = ['capabilities', 'component']
+  const unchanged =
+    source?.project &&
+    exactKeys.every(key => sameJson(project[key], source.project[key])) &&
+    containedKeys.every(key => containsJson(source.project[key], project[key]))
+  if (unchanged) {
     log(`${COMPONENT_NAME}: unchanged (${canvas.url ?? canvas.id})`)
     return canvas.id
   }
