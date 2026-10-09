@@ -12,7 +12,9 @@ export function jobIdentity(
   workflowRef: string
 ): { repo: string; job_key: string } {
   const workflowFile = workflowRef.split('@')[0].split('/').pop() || ''
-  const defaultJobKey = workflowFile ? `${workflowFile}/${contextJob}` : contextJob
+  const defaultJobKey = workflowFile
+    ? `${workflowFile}/${contextJob}`
+    : contextJob
   return {
     repo: `${owner}/${repo}`,
     job_key: jobKeyInput.trim() || defaultJobKey

@@ -318,9 +318,7 @@ test(
     const sql = withFixtures(readView('ci_job_tradeoffs', options), fixtures)
     const rows = await runQuery(sql)
     assertRows(
-      rows.filter(
-        row => row.job_key === 'skew' && row.runner_label === 'big'
-      ),
+      rows.filter(row => row.job_key === 'skew' && row.runner_label === 'big'),
       [
         {
           job_key: 'skew',
