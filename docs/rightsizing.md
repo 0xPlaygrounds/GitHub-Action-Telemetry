@@ -13,6 +13,11 @@ label: you read the trade-offs and decide.
   (a runner benchmark). These runs also calibrate the per-core speed of each label.
 - A matrix that runs different work under one job id needs `job_key`, for example
   `job_key: warm-${{ matrix.kind }}`.
+- `job_key` defaults to `<workflow file>/<job id>`. For a job in a reusable workflow, the
+  workflow file is the caller's file, not the reusable workflow's file. To compare runs of one
+  job across workflows (for example a runner benchmark that calls a reusable CI workflow, and the
+  direct CI runs), set the same `job_key` in the job, for example
+  `job_key: ci-typescript/lint-and-test`.
 
 ## Install
 
@@ -67,8 +72,9 @@ t' = t × [ w + (1 − w) × ((1 − p) + p × Nₛ/Nₜ) × kₛ/kₜ ]
 ```
 
 `N` is the vCPU count and `k` the per-core speed factor of a label (1 for the baseline label and
-for labels without benchmark pairs). The job estimate is the source label's median job duration
-plus the step changes. The cost is the estimate in whole minutes times the label's price. Queue
+for labels without benchmark pairs). The job estimate is the time outside steps (the source
+label's median job duration minus the sum of the step medians `t`, at least 0) plus the sum of
+the step estimates `t'`. The cost is the estimate in whole minutes times the label's price. Queue
 time is measured only.
 
 `k` of a label is the median of baseline time / label time over single-threaded steps (at most

@@ -142,7 +142,8 @@ async function run(): Promise<void> {
       github.context.repo.owner,
       github.context.repo.repo,
       core.getInput('job_key'),
-      github.context.job
+      github.context.job,
+      process.env.GITHUB_WORKFLOW_REF ?? ''
     ),
     workflow: github.context.workflow,
     job: job?.name ?? github.context.job,

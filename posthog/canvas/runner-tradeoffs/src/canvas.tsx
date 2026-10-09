@@ -208,7 +208,9 @@ function Cell({ row, current, selected, onSelect }) {
         }
       >
         <div className="flex items-center gap-1">
-          {Number(row.unreliable) ? <AlertTriangle size={12} /> : null}
+          {Number(row.unreliable) ? (
+            <AlertTriangle size={12} role="img" aria-label="Unreliable estimate" />
+          ) : null}
           <span className="font-medium">
             {row.source === 'does_not_fit' ? 'does not fit' : formatDuration(row.duration_p50_s)}
           </span>
@@ -395,6 +397,7 @@ export default function RunnerTradeoffs() {
         <div className="flex items-center gap-2">
           {workflowsSql ? (
             <select
+              aria-label="Workflow"
               className="rounded border border-border bg-card p-1 text-sm"
               value={workflow ?? ''}
               onChange={(event) => chooseWorkflow(event.target.value)}

@@ -41,7 +41,8 @@ const fixtures = {
       ['o/r', 'instant', 'small', 5, 10, 12, 100, 0, 1],
       ['o/r', 'instant', 'big', 3, 0, 0, 100, 0, 1],
       ['o/r', 'coldstart', 'small', 10, 50, 55, 100, 0, 1],
-      ['o/r', 'coldstart', 'big', 3, 40, 45, 100, 0, 1]
+      ['o/r', 'coldstart', 'big', 3, 40, 45, 100, 0, 1],
+      ['o/r', 'skew', 'small', 5, 101, 110, 100, 0, 1]
     ]
   ),
   ci_job_sources: fixture(
@@ -58,7 +59,8 @@ const fixtures = {
       ['o/r', 'lint', 'CI', 'small', 'small', 2],
       ['o/r', 'nosteps', 'CI', 'small', 'small', 5],
       ['o/r', 'instant', 'CI', 'small', 'small', 5],
-      ['o/r', 'coldstart', 'CI', 'small', 'small', 10]
+      ['o/r', 'coldstart', 'CI', 'small', 'small', 10],
+      ['o/r', 'skew', 'CI', 'small', 'small', 5]
     ]
   ),
   ci_step_tradeoffs: fixture(
@@ -75,7 +77,15 @@ const fixtures = {
       ['o/r', 'instant', 'small', 10, 10],
       ['o/r', 'instant', 'big', 10, 8],
       ['o/r', 'instant', 'fast', 10, 10],
-      ['o/r', 'instant', 'tiny', 10, 10]
+      ['o/r', 'instant', 'tiny', 10, 10],
+      ['o/r', 'skew', 'small', 120, 120],
+      ['o/r', 'skew', 'small', 80, 80],
+      ['o/r', 'skew', 'big', 120, 20],
+      ['o/r', 'skew', 'big', 80, 10],
+      ['o/r', 'skew', 'fast', 120, 100],
+      ['o/r', 'skew', 'fast', 80, 70],
+      ['o/r', 'skew', 'tiny', 120, 120],
+      ['o/r', 'skew', 'tiny', 80, 80]
     ]
   )
 }
@@ -85,7 +95,10 @@ test('ci_job_tradeoffs applies the rules', checkOptions, async () => {
   const rows = await runQuery(sql)
   assertRows(
     rows.filter(
-      row => row.job_key !== 'instant' && row.job_key !== 'coldstart'
+      row =>
+        row.job_key !== 'instant' &&
+        row.job_key !== 'coldstart' &&
+        row.job_key !== 'skew'
     ),
     [
       {
@@ -291,6 +304,27 @@ test(
           source: 'measured',
           backtest_error: null,
           backtest_kind: null
+        }
+      ],
+      ['job_key', 'runner_label']
+    )
+  }
+)
+
+test(
+  'ci_job_tradeoffs clamps the time outside steps at 0',
+  checkOptions,
+  async () => {
+    const sql = withFixtures(readView('ci_job_tradeoffs', options), fixtures)
+    const rows = await runQuery(sql)
+    assertRows(
+      rows.filter(row => row.job_key === 'skew' && row.runner_label === 'big'),
+      [
+        {
+          job_key: 'skew',
+          runner_label: 'big',
+          source: 'calibrated',
+          duration_p50_s: 30
         }
       ],
       ['job_key', 'runner_label']

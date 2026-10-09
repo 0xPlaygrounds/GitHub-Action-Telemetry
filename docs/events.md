@@ -10,7 +10,7 @@ deterministic `uuid`, so a second send of the same job does not add a second eve
 | Property | Meaning |
 |---|---|
 | `repo` | `owner/name` (since 3.1.0) |
-| `job_key` | `job_key` input, else the job id in the workflow file (since 3.1.0) |
+| `job_key` | `job_key` input, else `<workflow file>/<job id>` (since 3.1.0) |
 | `workflow`, `job`, `job_id`, `run_id`, `run_attempt` | GitHub identifiers; `job` is the job name from the API |
 | `runner_label`, `runner_name` | Labels joined with `,`; runner machine name |
 | `cpu_cores`, `cpu_model`, `arch`, `mem_total_mb`, `disk_total_gb` | Machine facts |

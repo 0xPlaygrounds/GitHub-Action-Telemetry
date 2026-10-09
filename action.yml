@@ -51,7 +51,7 @@ inputs:
     default: "true"
     required: false
   job_key:
-    description: "Key that identifies this job across runner labels and calling workflows, so its runs can be compared. Defaults to the job's id in its workflow file (`github.job`). Set it when a matrix runs one job id with different work, for example `warm-clippy`."
+    description: "Key that identifies this job across runner labels and calling workflows, so its runs can be compared. Defaults to `<workflow file>/<job id>`, for example `ci-rust.yaml/test`. Set it when a matrix runs one job id with different work, for example `warm-clippy`."
     required: false
 
 runs:
