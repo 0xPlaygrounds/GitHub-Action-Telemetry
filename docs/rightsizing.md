@@ -22,7 +22,7 @@ label: you read the trade-offs and decide.
 ## Install
 
 ```bash
-POSTHOG_PERSONAL_API_KEY=phx_... [POSTHOG_HOST=https://eu.posthog.com] node posthog/install.mjs \
+POSTHOG_PERSONAL_API_KEY=phx_... [POSTHOG_HOST=https://eu.posthog.com] node posthog/install.ts \
   --project <project id> --channel <channel id> [--window-days 14] [--baseline ubuntu-latest]
 ```
 

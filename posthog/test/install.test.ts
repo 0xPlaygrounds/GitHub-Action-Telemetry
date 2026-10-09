@@ -5,21 +5,27 @@ import {
   ensureGrid,
   upsertComponent,
   upsertView
-} from '../lib/install.mjs'
+} from '../lib/install.ts'
+import type { Api } from '../lib/api.ts'
 
-function fakeApi(existing) {
-  const calls = []
+type Call = [string, string, unknown?]
+
+// The default sort order: matches Array#sort() with no compare function (string, code unit order).
+const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
+function fakeApi(existing: unknown[]): Api & { calls: Call[] } {
+  const calls: Call[] = []
   return {
     calls,
-    get: async path => {
+    get: async (path: string) => {
       calls.push(['GET', path])
       return { results: existing }
     },
-    post: async (path, body) => {
+    post: async (path: string, body?: unknown) => {
       calls.push(['POST', path, body])
       return { id: 'new' }
     },
-    patch: async (path, body) => {
+    patch: async (path: string, body?: unknown) => {
       calls.push(['PATCH', path, body])
       return {}
     }
@@ -75,7 +81,7 @@ describe('componentProject', () => {
     expect(project.files['src/settings.js']).toBe(
       'export const WINDOW_DAYS = 14\nexport const BASELINE_LABEL = "ubuntu-latest"\n'
     )
-    expect(Object.keys(project.files).sort()).toEqual([
+    expect(Object.keys(project.files).sort(ordinal)).toEqual([
       'index.html',
       'src/canvas.tsx',
       'src/settings.js',
@@ -119,9 +125,9 @@ describe('upsertComponent', () => {
 
   it('does not publish when the current source already matches the built project', async () => {
     const project = componentProject(null, settings)
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return {
@@ -137,10 +143,11 @@ describe('upsertComponent', () => {
         }
         return { current_version_id: 'v1', project }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return { id: 'new' }
-      }
+      },
+      patch: async () => ({})
     }
     expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
     expect(calls.filter(call => call[0] === 'POST')).toEqual([])
@@ -152,9 +159,9 @@ describe('upsertComponent', () => {
       ...project,
       files: { ...project.files, 'src/canvas.tsx': 'stale' }
     }
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return {
@@ -170,10 +177,11 @@ describe('upsertComponent', () => {
         }
         return { current_version_id: 'v1', project: staleProject }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return { id: 'new' }
-      }
+      },
+      patch: async () => ({})
     }
     expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
     const publishCalls = calls.filter(
@@ -195,9 +203,9 @@ describe('upsertComponent', () => {
         size: { ...project.component.size, maxW: 12 }
       }
     }
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return {
@@ -213,10 +221,11 @@ describe('upsertComponent', () => {
         }
         return { current_version_id: 'v1', project: storedProject }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return { id: 'new' }
-      }
+      },
+      patch: async () => ({})
     }
     expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
     expect(calls.filter(call => call[0] === 'POST')).toEqual([])
@@ -228,9 +237,9 @@ describe('upsertComponent', () => {
       ...project,
       files: { ...project.files, 'src/extra.js': 'leftover' }
     }
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return {
@@ -246,10 +255,11 @@ describe('upsertComponent', () => {
         }
         return { current_version_id: 'v1', project: storedProject }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return { id: 'new' }
-      }
+      },
+      patch: async () => ({})
     }
     expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
     const publishCalls = calls.filter(
@@ -259,18 +269,19 @@ describe('upsertComponent', () => {
   })
 
   it('creates the canvas and publishes when it does not exist yet', async () => {
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) return { results: [] }
         return null
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         if (path === '/canvases/') return { id: 'new' }
         return {}
-      }
+      },
+      patch: async () => ({})
     }
     expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe(
       'new'
@@ -303,8 +314,8 @@ describe('upsertComponent', () => {
   })
 
   it('throws when the publish build fails', async () => {
-    const api = {
-      get: async path => {
+    const api: Api = {
+      get: async (path: string) => {
         if (path.startsWith('/canvases/?')) {
           return {
             results: [
@@ -319,12 +330,13 @@ describe('upsertComponent', () => {
         }
         return { current_version_id: 'v1', project: null }
       },
-      post: async path => {
+      post: async (path: string) => {
         if (path === '/canvases/c1/publish/') {
           return { build: { status: 'failed', errors: ['boom'] } }
         }
         return { id: 'new' }
-      }
+      },
+      patch: async () => ({})
     }
     await expect(
       upsertComponent(api, { channelId: 'c1', settings })
@@ -334,9 +346,9 @@ describe('upsertComponent', () => {
 
 describe('ensureGrid', () => {
   it('leaves a grid that already has the placement unchanged', async () => {
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return { results: [{ id: 'g1', name: 'CI runners', kind: 'grid' }] }
@@ -348,10 +360,11 @@ describe('ensureGrid', () => {
           }
         }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return {}
-      }
+      },
+      patch: async () => ({})
     }
     expect(await ensureGrid(api, { channelId: 'c1', componentId: 'k1' })).toBe(
       'unchanged'
@@ -360,18 +373,19 @@ describe('ensureGrid', () => {
   })
 
   it('creates the grid and publishes one placement at y = 0 when none exists', async () => {
-    const calls = []
-    const api = {
-      get: async path => {
+    const calls: Call[] = []
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) return { results: [] }
         return null
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         if (path === '/canvases/') return { id: 'g1' }
         return {}
-      }
+      },
+      patch: async () => ({})
     }
     expect(await ensureGrid(api, { channelId: 'c1', componentId: 'k1' })).toBe(
       'created'
@@ -380,7 +394,8 @@ describe('ensureGrid', () => {
       call => call[0] === 'POST' && call[1] === '/canvases/g1/layout/publish/'
     )
     expect(publishCalls).toHaveLength(1)
-    expect(publishCalls[0][2].layout.placements).toEqual([
+    const body = publishCalls[0][2] as { layout: { placements: unknown[] } }
+    expect(body.layout.placements).toEqual([
       {
         id: 'runner-tradeoffs',
         status: 'live',
@@ -395,7 +410,7 @@ describe('ensureGrid', () => {
   })
 
   it('updates the placement component when it points at an old component id', async () => {
-    const calls = []
+    const calls: Call[] = []
     const existingPlacement = {
       id: 'runner-tradeoffs',
       status: 'live',
@@ -406,8 +421,8 @@ describe('ensureGrid', () => {
       h: 24,
       config: { repo: 'o/r' }
     }
-    const api = {
-      get: async path => {
+    const api: Api = {
+      get: async (path: string) => {
         calls.push(['GET', path])
         if (path.startsWith('/canvases/?')) {
           return { results: [{ id: 'g1', name: 'CI runners', kind: 'grid' }] }
@@ -420,10 +435,11 @@ describe('ensureGrid', () => {
           }
         }
       },
-      post: async (path, body) => {
+      post: async (path: string, body?: unknown) => {
         calls.push(['POST', path, body])
         return {}
-      }
+      },
+      patch: async () => ({})
     }
     expect(await ensureGrid(api, { channelId: 'c1', componentId: 'new' })).toBe(
       'updated'
@@ -432,7 +448,8 @@ describe('ensureGrid', () => {
       call => call[0] === 'POST' && call[1] === '/canvases/g1/layout/publish/'
     )
     expect(publishCalls).toHaveLength(1)
-    expect(publishCalls[0][2].layout.placements).toEqual([
+    const body = publishCalls[0][2] as { layout: { placements: unknown[] } }
+    expect(body.layout.placements).toEqual([
       { ...existingPlacement, component: 'new' }
     ])
   })
