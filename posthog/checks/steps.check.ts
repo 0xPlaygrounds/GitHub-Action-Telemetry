@@ -1,6 +1,6 @@
 import { test } from 'node:test'
-import { fixture, readView, withFixtures } from '../lib/sql.mjs'
-import { assertRows, checkOptions, runQuery } from './query.mjs'
+import { fixture, readView, withFixtures } from '../lib/sql.ts'
+import { assertRows, checkOptions, runQuery } from './query.ts'
 
 const options = { windowDays: 14, baselineLabel: 'small' }
 

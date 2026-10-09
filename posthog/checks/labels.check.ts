@@ -1,9 +1,9 @@
 import { test } from 'node:test'
-import { fixture, raw, readView, withFixtures } from '../lib/sql.mjs'
-import { assertRows, checkOptions, runQuery } from './query.mjs'
+import { fixture, raw, readView, withFixtures, type RawSql } from '../lib/sql.ts'
+import { assertRows, checkOptions, runQuery } from './query.ts'
 
 const options = { windowDays: 14, baselineLabel: 'small' }
-const at = day => raw(`toDateTime('2026-10-0${day} 10:00:00')`)
+const at = (day: number): RawSql => raw(`toDateTime('2026-10-0${day} 10:00:00')`)
 
 test(
   'ci_label_profile keeps the latest known price',

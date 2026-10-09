@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assertRows } from '../checks/query.mjs'
+import { assertRows } from '../checks/query.ts'
 
 describe('assertRows', () => {
   it('fails a boolean column when the actual value is NULL', () => {

@@ -6,7 +6,7 @@ import {
   raw,
   renderSql,
   withFixtures
-} from '../lib/sql.mjs'
+} from '../lib/sql.ts'
 
 const options = { windowDays: 14, baselineLabel: 'ubuntu-latest' }
 
