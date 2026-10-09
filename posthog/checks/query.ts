@@ -47,7 +47,11 @@ export async function runQuery(sql: string): Promise<Row[]> {
 const sortKey = (row: Row, keys: string[]): string =>
   keys.map(key => String(row[key])).join('\u0000')
 
-export function assertRows(actual: Row[], expected: Row[], keys: string[]): void {
+export function assertRows(
+  actual: Row[],
+  expected: Row[],
+  keys: string[]
+): void {
   const sorted = (rows: Row[]): Row[] =>
     [...rows].sort((a, b) => sortKey(a, keys).localeCompare(sortKey(b, keys)))
   const left = sorted(actual)

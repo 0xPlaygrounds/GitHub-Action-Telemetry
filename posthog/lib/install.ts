@@ -52,7 +52,10 @@ export interface StoredProject {
 }
 
 const FALLBACK_PROJECT: Required<
-  Pick<StoredProject, 'entryHtml' | 'files' | 'dependencies' | 'canvasSdkVersion'>
+  Pick<
+    StoredProject,
+    'entryHtml' | 'files' | 'dependencies' | 'canvasSdkVersion'
+  >
 > = {
   entryHtml: 'index.html',
   files: {
@@ -130,14 +133,16 @@ export function componentProject(
           },
           workflow: {
             type: 'string',
-            description:
-              'Workflow to show; when empty, each viewer picks one'
+            description: 'Workflow to show; when empty, each viewer picks one'
           }
         }
       }
     }
   }
 }
+
+// The default sort order: matches Array#sort() with no compare function (string, code unit order).
+const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 // Deep-equality check that ignores key order, so a rebuilt project that differs only in property
 // insertion order still counts as unchanged.
@@ -160,8 +165,8 @@ function sameJson(a: unknown, b: unknown): boolean {
   }
   const aRecord = a as Record<string, unknown>
   const bRecord = b as Record<string, unknown>
-  const aKeys = Object.keys(aRecord).sort()
-  const bKeys = Object.keys(bRecord).sort()
+  const aKeys = Object.keys(aRecord).sort(ordinal)
+  const bKeys = Object.keys(bRecord).sort(ordinal)
   if (aKeys.length !== bKeys.length) return false
   return aKeys.every(
     (key, index) => key === bKeys[index] && sameJson(aRecord[key], bRecord[key])
@@ -180,7 +185,8 @@ export function containsJson(stored: unknown, sent: unknown): boolean {
   ) {
     return false
   }
-  if (Array.isArray(sent) || Array.isArray(stored)) return sameJson(stored, sent)
+  if (Array.isArray(sent) || Array.isArray(stored))
+    return sameJson(stored, sent)
   const sentRecord = sent as Record<string, unknown>
   const storedRecord = stored as Record<string, unknown>
   return Object.keys(sentRecord).every(key =>
@@ -271,7 +277,9 @@ export async function upsertComponent(
       `The canvas build failed: ${JSON.stringify(published.build)}`
     )
   }
-  log(`${COMPONENT_NAME}: published, build ${status} (${canvas.url ?? canvas.id})`)
+  log(
+    `${COMPONENT_NAME}: published, build ${status} (${canvas.url ?? canvas.id})`
+  )
   return canvas.id
 }
 

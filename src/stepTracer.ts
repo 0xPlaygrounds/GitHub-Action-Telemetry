@@ -46,7 +46,5 @@ export function report(
   steps: StepUsage[],
   cores: number
 ): string {
-  return (
-    generateTraceChartForSteps(job) + '\n' + generateUsageTable(steps, cores)
-  )
+  return `${generateTraceChartForSteps(job)}\n${generateUsageTable(steps, cores)}`
 }

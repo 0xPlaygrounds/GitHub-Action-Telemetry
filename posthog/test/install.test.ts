@@ -10,6 +10,9 @@ import type { Api } from '../lib/api.ts'
 
 type Call = [string, string, unknown?]
 
+// The default sort order: matches Array#sort() with no compare function (string, code unit order).
+const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
 function fakeApi(existing: unknown[]): Api & { calls: Call[] } {
   const calls: Call[] = []
   return {
@@ -78,7 +81,7 @@ describe('componentProject', () => {
     expect(project.files['src/settings.js']).toBe(
       'export const WINDOW_DAYS = 14\nexport const BASELINE_LABEL = "ubuntu-latest"\n'
     )
-    expect(Object.keys(project.files).sort()).toEqual([
+    expect(Object.keys(project.files).sort(ordinal)).toEqual([
       'index.html',
       'src/canvas.tsx',
       'src/settings.js',
