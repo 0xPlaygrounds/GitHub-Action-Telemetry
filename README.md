@@ -125,20 +125,26 @@ binary with `gh attestation verify dist/proc-tracer/proc-tracer-x64 -R 0xPlaygro
 
 ## Release
 
-Merge pull requests into `master` with Conventional Commit titles (`feat:`, `fix:`, `docs:`,
-`chore:`, and so on). Each merge updates a draft GitHub release and labels the pull request; see
-[.github/release-drafter.yml](.github/release-drafter.yml) for the category and version mapping.
+Merge pull requests into `master` with Conventional Commit titles. Use `feat:` for a feature,
+`fix:` for a bug fix, and `docs:` for documentation. Use `chore:`, `ci:`, `build:`, `test:`,
+`refactor:`, or `style:` for maintenance. Add `!` before the colon for a breaking change, for
+example `feat!:`. Each merge updates a draft GitHub release. Each merge also labels the pull
+request from its title. See [.github/release-drafter.yml](.github/release-drafter.yml) for the
+category and version mapping.
 
 To cut a release:
 
-1. Bump the `version` field in `package.json` (and add an entry to [CHANGELOG.md](CHANGELOG.md))
-   in a pull request, and merge it.
-2. Open the draft release on the
-   [Releases page](https://github.com/0xPlaygrounds/GitHub-Action-Telemetry/releases), check the
-   generated notes, and publish it.
-3. Publishing moves the major tag (for example `v3` for `v3.1.0`) to the release commit. If
-   `package.json`'s version does not match the release tag, the workflow fails with an error
-   instead of moving the tag.
+1. Open the draft release on the
+   [Releases page](https://github.com/0xPlaygrounds/GitHub-Action-Telemetry/releases) and read
+   its version, for example `v3.2.0`.
+2. In a PR, set `version` in `package.json` to that number without the `v`, for example `3.2.0`.
+   Add the entry to [CHANGELOG.md](CHANGELOG.md) in the same PR.
+3. Merge the PR.
+4. Check the draft release again. Its version must still match `package.json`.
+5. Publish the draft. The major tag then moves automatically, for example `v3` for `v3.2.0`.
+
+If `package.json`'s version does not match the release tag when you publish, the workflow fails
+with an error instead of moving the tag.
 
 ## License
 
