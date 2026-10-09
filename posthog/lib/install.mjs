@@ -1,4 +1,168 @@
+import { readFileSync } from 'node:fs'
 import { VIEWS, readView } from './sql.mjs'
+
+const COMPONENT_NAME = 'Runner trade-offs'
+const GRID_NAME = 'CI runners'
+const PLACEMENT_ID = 'runner-tradeoffs'
+const COMPONENT_DEPENDENCIES = [
+  'react',
+  'react-dom',
+  '@posthog/quill',
+  'lucide-react',
+  'recharts'
+]
+const FALLBACK_PROJECT = {
+  entryHtml: 'index.html',
+  files: {
+    'index.html':
+      '<!doctype html>\n<html>\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n  </head>\n  <body>\n    <div id="root"></div>\n    <script type="module" src="/src/canvas.tsx"></script>\n  </body>\n</html>\n'
+  },
+  dependencies: {
+    react: '19.0.0',
+    'react-dom': '19.0.0',
+    '@posthog/quill': '0.3.0-beta.18',
+    'lucide-react': '1.21.0',
+    recharts: '2.15.0'
+  },
+  canvasSdkVersion: '0.2.0'
+}
+
+const canvasFile = path =>
+  readFileSync(
+    new URL(`../canvas/runner-tradeoffs/${path}`, import.meta.url),
+    'utf8'
+  )
+
+// The shell and the dependency pins come from the canvas's current source, so they match the
+// platform's supported versions; a canvas with no source yet uses the fallback.
+export function componentProject(source, { windowDays, baselineLabel }) {
+  const base = source?.project?.files?.['index.html']
+    ? source.project
+    : FALLBACK_PROJECT
+  const dependencies = Object.fromEntries(
+    Object.entries({
+      ...FALLBACK_PROJECT.dependencies,
+      ...base.dependencies
+    }).filter(([name]) => COMPONENT_DEPENDENCIES.includes(name))
+  )
+  return {
+    schemaVersion: 1,
+    entryHtml: base.entryHtml ?? 'index.html',
+    files: {
+      'index.html': base.files['index.html'],
+      'src/canvas.tsx': canvasFile('src/canvas.tsx'),
+      'src/view.js': canvasFile('src/view.js'),
+      'src/settings.js': `export const WINDOW_DAYS = ${windowDays}\nexport const BASELINE_LABEL = '${baselineLabel}'\n`
+    },
+    dependencies,
+    canvasSdkVersion:
+      base.canvasSdkVersion ?? FALLBACK_PROJECT.canvasSdkVersion,
+    capabilities: {
+      posthog: {
+        insights: [],
+        inlineQueries: true,
+        captureEvents: [],
+        state: ['user'],
+        actions: []
+      },
+      network: { origins: [] }
+    },
+    component: {
+      size: { defaultW: 12, defaultH: 24, minW: 6, minH: 10 },
+      configSchema: {
+        type: 'object',
+        properties: {
+          repo: {
+            type: 'string',
+            description: 'Repository (owner/name) to show; all when empty'
+          },
+          workflow: {
+            type: 'string',
+            description:
+              'Workflow to show; when empty, each viewer picks one'
+          }
+        }
+      }
+    }
+  }
+}
+
+async function findCanvas(api, channelId, kind, name) {
+  const list = await api.get(
+    `/canvases/?channel=${encodeURIComponent(channelId)}&kind=${kind}&limit=100`
+  )
+  return (list.results ?? []).find(canvas => canvas.name === name) ?? null
+}
+
+export async function upsertComponent(api, { channelId, settings }, log = console.log) {
+  const canvas =
+    (await findCanvas(api, channelId, 'component', COMPONENT_NAME)) ??
+    (await api.post('/canvases/', {
+      name: COMPONENT_NAME,
+      channel_id: channelId,
+      kind: 'component',
+      description:
+        'CI job duration and cost on each runner label, measured or estimated from CPU use. ' +
+        'Config: repo and workflow filters.'
+    }))
+  const source = await api.get(`/canvases/${canvas.id}/source/`)
+  const project = componentProject(source, settings)
+  const published = await api.post(`/canvases/${canvas.id}/publish/`, {
+    project,
+    prompt: 'Install Runner trade-offs from GitHub-Action-Telemetry',
+    expected_current_version_id: source?.current_version_id ?? null
+  })
+  const status = published?.build?.status ?? 'unknown'
+  if (status === 'failed') {
+    throw new Error(
+      `The canvas build failed: ${JSON.stringify(published.build)}`
+    )
+  }
+  log(`${COMPONENT_NAME}: published, build ${status} (${canvas.url ?? canvas.id})`)
+  return canvas.id
+}
+
+export async function ensureGrid(api, { channelId, componentId }, log = console.log) {
+  const grid =
+    (await findCanvas(api, channelId, 'grid', GRID_NAME)) ??
+    (await api.post('/canvases/', {
+      name: GRID_NAME,
+      channel_id: channelId,
+      kind: 'grid',
+      description: 'CI runner trade-offs'
+    }))
+  const current = await api.get(`/canvases/${grid.id}/layout/`)
+  const layout = current?.layout ?? null
+  const placements = layout?.placements ?? []
+  if (placements.some(placement => placement.id === PLACEMENT_ID)) {
+    log(`${GRID_NAME}: unchanged`)
+    return 'unchanged'
+  }
+  const bottom = Math.max(0, ...placements.map(p => p.y + p.h))
+  await api.post(`/canvases/${grid.id}/layout/publish/`, {
+    layout: {
+      schemaVersion: 1,
+      grid: layout?.grid ?? { columns: 12, rowHeight: 48, gap: 12 },
+      placements: [
+        ...placements,
+        {
+          id: PLACEMENT_ID,
+          status: 'live',
+          component: componentId,
+          x: 0,
+          y: bottom,
+          w: 12,
+          h: 24,
+          config: {}
+        }
+      ]
+    },
+    prompt: 'Add Runner trade-offs',
+    expected_current_version_id: current?.current_version_id ?? null
+  })
+  log(`${GRID_NAME}: created (${grid.url ?? grid.id})`)
+  return 'created'
+}
 
 export async function upsertView(api, name, sql) {
   const list = await api.get(

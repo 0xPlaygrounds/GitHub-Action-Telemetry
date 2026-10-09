@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util'
 import { createApi } from './lib/api.mjs'
-import { installViews } from './lib/install.mjs'
+import { ensureGrid, installViews, upsertComponent } from './lib/install.mjs'
 
 const { values } = parseArgs({
   options: {
@@ -30,6 +30,12 @@ const options = {
   baselineLabel: values.baseline
 }
 await installViews(api, options)
-if (!values.channel) {
+if (values.channel) {
+  const componentId = await upsertComponent(api, {
+    channelId: values.channel,
+    settings: options
+  })
+  await ensureGrid(api, { channelId: values.channel, componentId })
+} else {
   console.log('No --channel: the views are installed, the canvas is not.')
 }
