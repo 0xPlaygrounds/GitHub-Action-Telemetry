@@ -1,0 +1,39 @@
+# This workflow drafts the next GitHub release and labels pull requests.
+#
+# On push to master, it updates a draft release whose notes list merged pull
+# requests by category; the version comes from the labels on those pull
+# requests (see .github/release-drafter.yml).
+#
+# On pull request open, reopen, synchronize, or edit, it sets labels from the
+# Conventional Commit prefix in the PR title. This job uses
+# pull_request_target so labeling also works for pull requests from forks, but
+# it never checks out or runs PR code.
+name: Release Drafter
+
+on:
+  push:
+    branches:
+      - master
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
+
+  autolabel:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: release-drafter/release-drafter/autolabeler@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0

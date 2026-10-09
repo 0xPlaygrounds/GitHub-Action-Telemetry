@@ -1,0 +1,64 @@
+# Configuration for release-drafter/release-drafter (see .github/workflows/release-drafter.yml).
+#
+# On every push to master, release-drafter updates a draft GitHub release. The
+# draft lists merged pull requests by category and resolves the next version
+# from the labels on those pull requests. The autolabeler sets those labels
+# from the pull request title.
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: 'Breaking Changes'
+    semver-increment: 'major'
+    when:
+      label: 'breaking'
+  - title: 'Features'
+    semver-increment: 'minor'
+    when:
+      label: 'feature'
+  - title: 'Fixes'
+    semver-increment: 'patch'
+    when:
+      label: 'fix'
+  - title: 'Documentation'
+    semver-increment: 'patch'
+    when:
+      label: 'documentation'
+  - title: 'Maintenance'
+    semver-increment: 'patch'
+    when:
+      labels:
+        - 'maintenance'
+        - 'dependencies'
+  # Fallback: resolve to a patch bump for merged pull requests that carry
+  # none of the labels above.
+  - type: 'version-resolver'
+    semver-increment: 'patch'
+
+change-template: '- $TITLE (#$NUMBER)'
+
+template: |
+  ## Changes
+
+  $CHANGES
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$RESOLVED_TAG
+
+# Title matchers use a case-insensitive regex (the /i flag), so "Fix: typo"
+# labels the same as "fix: typo".
+autolabeler:
+  - labels: ['breaking']
+    title:
+      - '/^[a-z]+(\(.+\))?!:/i'
+  - labels: ['feature']
+    title:
+      - '/^feat(\(.+\))?:/i'
+  - labels: ['fix']
+    title:
+      - '/^fix(\(.+\))?:/i'
+  - labels: ['documentation']
+    title:
+      - '/^docs(\(.+\))?:/i'
+  - labels: ['maintenance']
+    title:
+      - '/^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:/i'
