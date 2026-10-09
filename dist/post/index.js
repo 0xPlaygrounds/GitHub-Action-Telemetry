@@ -37314,6 +37314,16 @@ function getOctokit(token, options, ...additionalPlugins) {
     return new GitHubWithPlugins(getOctokitOptions(token, options));
 }
 //# sourceMappingURL=github.js.map
+;// CONCATENATED MODULE: ./src/identity.ts
+// The job_key stays the same when a job runs on another runner label or is called from another
+// workflow, so runs of one job can be compared. It defaults to the job's id in its workflow file.
+function jobIdentity(owner, repo, jobKeyInput, contextJob) {
+    return {
+        repo: `${owner}/${repo}`,
+        job_key: jobKeyInput.trim() || contextJob
+    };
+}
+
 ;// CONCATENATED MODULE: ./src/logger.ts
 
 const LOG_HEADER = '[Workflow Telemetry]';
@@ -37991,6 +38001,7 @@ function stepTracer_report(job, steps, cores) {
 
 
 
+
 const PAGE_SIZE = 100;
 async function getCurrentJob() {
     const octokit = getOctokit(getInput('github_token'));
@@ -38082,6 +38093,7 @@ async function run() {
     const memPeak = Math.max(...samples.map(sample => sample.mem_used));
     const properties = {
         $process_person_profile: false,
+        ...jobIdentity(github_context.repo.owner, github_context.repo.repo, getInput('job_key'), github_context.job),
         workflow: github_context.workflow,
         job: job?.name ?? github_context.job,
         job_id: job?.id ?? null,

@@ -22,6 +22,7 @@ export function buildEvents(
 ): PostHogEvent[] {
   const runContext = {
     $process_person_profile: false,
+    repo,
     workflow: run.name,
     event: run.event,
     branch: run.head_branch,

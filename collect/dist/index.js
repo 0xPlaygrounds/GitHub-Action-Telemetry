@@ -37320,6 +37320,7 @@ const seconds = (from, to) => from && to
 function buildEvents(repo, run, jobs, prices) {
     const runContext = {
         $process_person_profile: false,
+        repo,
         workflow: run.name,
         event: run.event,
         branch: run.head_branch,

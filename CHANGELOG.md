@@ -1,5 +1,25 @@
 # Changelog
 
+## 3.1.0
+
+### Added
+
+- `repo` property (`owner/name`) on `ci_job_resources`, `ci_job` and `ci_run`.
+- `job_key` input and property on `ci_job_resources`. It defaults to the job id in the workflow
+  file, so runs of one job on different runner labels or from different calling workflows can be
+  compared.
+- `docs/events.md`: the event contract.
+- `posthog/`: saved SQL views and the "Runner trade-offs" canvas for runner rightsizing, with an
+  install script (`node posthog/install.mjs`). See `docs/rightsizing.md`.
+
+### Upgrade notes
+
+- Events recorded before 3.1.0 have no `repo` and use the job name as `job_key`. For one window
+  after the upgrade, a job can show twice: once with an empty `repo` and once with `owner/name`.
+  Set the canvas placement's `repo` filter to hide the old rows.
+- Benchmark runs recorded before 3.1.0 cannot pair across labels. Run the runner-benchmark
+  workflow again after the upgrade, so the view has pairs to calibrate from.
+
 ## 3.0.0
 
 Changes from catchpoint/workflow-telemetry-action v2.0.0. All files under `src/`, `action.yml`,

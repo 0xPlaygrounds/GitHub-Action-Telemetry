@@ -68,6 +68,7 @@ also when the job fails or is cancelled.
 | `proc_trace_table_show`      | `false`                    | Show all processes with their arguments.                                 |
 | `comment_on_pr`              | `false`                    | Also post the report as a pull request comment (`pull-requests: write`). |
 | `job_summary`                | `true`                     | Write the report to the job summary.                                     |
+| `job_key`                    |                            | Key that identifies this job across runner labels and calling workflows. Defaults to the job id in the workflow file (`github.job`). Set it for a matrix that runs different work under one job id. |
 
 ## Collect run and job timings and cost
 
@@ -99,6 +100,11 @@ jobs:
 
 `runner_prices` maps runner labels to USD per minute. GitHub bills each job in whole minutes, so
 the cost is billable minutes × price. Without it, the GitHub standard x64 Linux prices are used.
+
+## Rightsizing in PostHog
+
+Saved SQL views and a PostHog Desktop canvas show, for each job, the duration and the cost on
+each runner label, measured or estimated from CPU use. See [docs/rightsizing.md](docs/rightsizing.md).
 
 ## Privacy
 

@@ -1,6 +1,7 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import type { CompletedCommand, WorkflowJobType } from './interfaces/index.js'
+import { jobIdentity } from './identity.js'
 import * as logger from './logger.js'
 import { machine, sccacheStats } from './machine.js'
 import { eventUuid, send } from './posthog.js'
@@ -137,6 +138,12 @@ async function run(): Promise<void> {
   const memPeak = Math.max(...samples.map(sample => sample.mem_used))
   const properties = {
     $process_person_profile: false,
+    ...jobIdentity(
+      github.context.repo.owner,
+      github.context.repo.repo,
+      core.getInput('job_key'),
+      github.context.job
+    ),
     workflow: github.context.workflow,
     job: job?.name ?? github.context.job,
     job_id: job?.id ?? null,
