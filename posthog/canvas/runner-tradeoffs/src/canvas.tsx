@@ -102,27 +102,27 @@ function conditions(workflow, extra = []) {
 }
 
 const LABELS_SQL = `SELECT runner_label, vcpus, mem_total_mb, price_per_minute_usd, queued_s_p50, runs
-FROM ci_label_profile
+FROM ci_label_profile AS profile
 ORDER BY vcpus, runner_label`
 
 const WORKFLOWS_SQL = () => `SELECT DISTINCT workflow
-FROM ci_job_tradeoffs
+FROM ci_job_tradeoffs AS tradeoffs
 ${conditions(null)}
 ORDER BY workflow`
 
 const TRADEOFFS_SQL = (workflow) => `SELECT repo, workflow, job_key, runner_label, source_label, is_current_label, runs,
     source, duration_p50_s, duration_p90_s, cost_per_run_usd, unreliable, runs_per_month
-FROM ci_job_tradeoffs
+FROM ci_job_tradeoffs AS tradeoffs
 ${conditions(workflow)}
 ORDER BY workflow, job_key, runner_label`
 
 const BACKTEST_SQL = () => `SELECT backtest_kind, quantile(0.5)(abs(backtest_error)) AS median_abs_error, count() AS pairs
-FROM ci_job_tradeoffs
+FROM ci_job_tradeoffs AS tradeoffs
 ${conditions(null, ['backtest_kind IS NOT NULL'])}
 GROUP BY backtest_kind`
 
 const STEPS_SQL = (repo, jobKey, label) => `SELECT step_name, t_s, estimate_s, c, w, p
-FROM ci_step_tradeoffs
+FROM ci_step_tradeoffs AS steps
 WHERE repo = ${quote(repo)} AND job_key = ${quote(jobKey)} AND target_label = ${quote(label)}
 ORDER BY abs(estimate_s - t_s) DESC`
 
@@ -142,13 +142,18 @@ function QueryDialog({ title, sql }) {
   )
 }
 
-function Status({ state, sql, title, children }) {
-  if (state.loading) return <SkeletonText lines={6} />
-  if (state.error) {
+// Waits for every listed query before rendering children: the skeleton shows while any of them
+// is loading, and the first one with an error wins over the rest so only one message shows.
+function Status({ queries, children }) {
+  if (queries.some((query) => query.state.loading)) return <SkeletonText lines={6} />
+  const failed = queries.find((query) => query.state.error)
+  if (failed) {
     return (
       <div className="space-y-2">
-        <Text>Could not load {title}: {state.error}</Text>
-        <QueryDialog title={title} sql={sql} />
+        <Text>
+          Could not load {failed.title}: {failed.state.error}
+        </Text>
+        <QueryDialog title={failed.title} sql={failed.sql} />
       </div>
     )
   }
@@ -288,7 +293,7 @@ function Detail({ job, rows, label, onLabel }) {
           </Text>
         ) : null}
         {label ? (
-          <Status state={steps} sql={sql} title="step estimates">
+          <Status queries={[{ state: steps, sql, title: 'step estimates' }]}>
             <div className="flex justify-end">
               <QueryDialog title="Step estimates" sql={sql} />
             </div>
@@ -384,6 +389,9 @@ export default function RunnerTradeoffs() {
               ))}
             </select>
           ) : null}
+          {workflowsSql && workflows.error ? (
+            <Text className="text-muted-foreground">Could not load workflows</Text>
+          ) : null}
           {workflowsSql ? <QueryDialog title="Workflows" sql={workflowsSql} /> : null}
           <QueryDialog title="Trade-offs" sql={tradeoffsSql} />
           <QueryDialog title="Backtest" sql={backtestSql} />
@@ -393,7 +401,12 @@ export default function RunnerTradeoffs() {
 
       <Card size="sm">
         <CardContent>
-          <Status state={tradeoffs.error ? tradeoffs : labels} sql={tradeoffs.error ? tradeoffsSql : labelsSql} title="trade-offs">
+          <Status
+            queries={[
+              { state: labels, sql: labelsSql, title: 'runner labels' },
+              { state: tradeoffs, sql: tradeoffsSql, title: 'trade-offs' },
+            ]}
+          >
             {!jobs.length ? (
               <Text>{EMPTY_HINT}</Text>
             ) : (
