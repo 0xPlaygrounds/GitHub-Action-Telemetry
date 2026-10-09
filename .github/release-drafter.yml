@@ -44,19 +44,21 @@ template: |
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$RESOLVED_TAG
 
+# Title matchers use a case-insensitive regex (the /i flag), so "Fix: typo"
+# labels the same as "fix: typo".
 autolabeler:
   - labels: ['breaking']
     title:
-      - '/^[a-z]+(\(.+\))?!:/'
+      - '/^[a-z]+(\(.+\))?!:/i'
   - labels: ['feature']
     title:
-      - '/^feat(\(.+\))?:/'
+      - '/^feat(\(.+\))?:/i'
   - labels: ['fix']
     title:
-      - '/^fix(\(.+\))?:/'
+      - '/^fix(\(.+\))?:/i'
   - labels: ['documentation']
     title:
-      - '/^docs(\(.+\))?:/'
+      - '/^docs(\(.+\))?:/i'
   - labels: ['maintenance']
     title:
-      - '/^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:/'
+      - '/^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:/i'
