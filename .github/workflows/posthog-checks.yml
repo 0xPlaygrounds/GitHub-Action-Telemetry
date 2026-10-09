@@ -1,0 +1,27 @@
+name: posthog-checks
+
+# Runs the SQL checks of posthog/ through the PostHog query API. The checks skip when the secret
+# POSTHOG_CHECKS_API_KEY (scope query:read) or the variable POSTHOG_CHECKS_PROJECT_ID is not set.
+on:
+  pull_request:
+    paths:
+      - "posthog/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:posthog
+        env:
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.POSTHOG_CHECKS_API_KEY }}
+          POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_CHECKS_PROJECT_ID }}

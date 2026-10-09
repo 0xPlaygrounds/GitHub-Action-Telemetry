@@ -9,6 +9,8 @@
   file, so runs of one job on different runner labels or from different calling workflows can be
   compared.
 - `docs/events.md`: the event contract.
+- `posthog/`: saved SQL views and the "Runner trade-offs" canvas for runner rightsizing, with an
+  install script (`node posthog/install.mjs`). See `docs/rightsizing.md`.
 
 ## 3.0.0
 

@@ -101,6 +101,11 @@ jobs:
 `runner_prices` maps runner labels to USD per minute. GitHub bills each job in whole minutes, so
 the cost is billable minutes × price. Without it, the GitHub standard x64 Linux prices are used.
 
+## Rightsizing in PostHog
+
+Saved SQL views and a PostHog Desktop canvas show, for each job, the duration and the cost on
+each runner label, measured or estimated from CPU use. See [docs/rightsizing.md](docs/rightsizing.md).
+
 ## Privacy
 
 The action sends data only to the GitHub API and, when `posthog_api_key` is set, to PostHog. The
