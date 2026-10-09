@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { componentProject, ensureGrid, upsertView } from '../lib/install.mjs'
+import {
+  componentProject,
+  ensureGrid,
+  upsertComponent,
+  upsertView
+} from '../lib/install.mjs'
 
 function fakeApi(existing) {
   const calls = []
@@ -90,6 +95,119 @@ describe('componentProject', () => {
       actions: []
     })
     expect(project.component.configSchema.properties).toHaveProperty('repo')
+  })
+})
+
+describe('upsertComponent', () => {
+  const settings = { windowDays: 14, baselineLabel: 'ubuntu-latest' }
+
+  it('does not publish when the current source already matches the built project', async () => {
+    const project = componentProject(null, settings)
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) {
+          return {
+            results: [
+              {
+                id: 'c1',
+                name: 'Runner trade-offs',
+                kind: 'component',
+                url: 'https://x/c1'
+              }
+            ]
+          }
+        }
+        return { current_version_id: 'v1', project }
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        return { id: 'new' }
+      }
+    }
+    expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
+    expect(calls.filter(call => call[0] === 'POST')).toEqual([])
+  })
+
+  it('publishes once when the source has a different canvas.tsx', async () => {
+    const project = componentProject(null, settings)
+    const staleProject = {
+      ...project,
+      files: { ...project.files, 'src/canvas.tsx': 'stale' }
+    }
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) {
+          return {
+            results: [
+              {
+                id: 'c1',
+                name: 'Runner trade-offs',
+                kind: 'component',
+                url: 'https://x/c1'
+              }
+            ]
+          }
+        }
+        return { current_version_id: 'v1', project: staleProject }
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        return { id: 'new' }
+      }
+    }
+    expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe('c1')
+    const publishCalls = calls.filter(
+      call => call[0] === 'POST' && call[1] === '/canvases/c1/publish/'
+    )
+    expect(publishCalls).toHaveLength(1)
+  })
+
+  it('creates the canvas and publishes when it does not exist yet', async () => {
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) return { results: [] }
+        return null
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        if (path === '/canvases/') return { id: 'new' }
+        return {}
+      }
+    }
+    expect(await upsertComponent(api, { channelId: 'c1', settings })).toBe(
+      'new'
+    )
+    expect(calls).toEqual([
+      ['GET', '/canvases/?channel=c1&kind=component&limit=100'],
+      [
+        'POST',
+        '/canvases/',
+        {
+          name: 'Runner trade-offs',
+          channel_id: 'c1',
+          kind: 'component',
+          description:
+            'CI job duration and cost on each runner label, measured or estimated from CPU use. ' +
+            'Config: repo and workflow filters.'
+        }
+      ],
+      ['GET', '/canvases/new/source/'],
+      [
+        'POST',
+        '/canvases/new/publish/',
+        {
+          project: componentProject(null, settings),
+          prompt: 'Install Runner trade-offs from GitHub-Action-Telemetry',
+          expected_current_version_id: null
+        }
+      ]
+    ])
   })
 })
 

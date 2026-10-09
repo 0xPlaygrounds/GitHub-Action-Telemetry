@@ -87,6 +87,23 @@ export function componentProject(source, { windowDays, baselineLabel }) {
   }
 }
 
+// Deep-equality check that ignores key order, so a rebuilt project that differs only in property
+// insertion order still counts as unchanged.
+function sameJson(a, b) {
+  if (a === b) return true
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+    return false
+  }
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    return a.length === b.length && a.every((value, index) => sameJson(value, b[index]))
+  }
+  const aKeys = Object.keys(a).sort()
+  const bKeys = Object.keys(b).sort()
+  if (aKeys.length !== bKeys.length) return false
+  return aKeys.every((key, index) => key === bKeys[index] && sameJson(a[key], b[key]))
+}
+
 async function findCanvas(api, channelId, kind, name) {
   const list = await api.get(
     `/canvases/?channel=${encodeURIComponent(channelId)}&kind=${kind}&limit=100`
@@ -107,6 +124,11 @@ export async function upsertComponent(api, { channelId, settings }, log = consol
     }))
   const source = await api.get(`/canvases/${canvas.id}/source/`)
   const project = componentProject(source, settings)
+  const comparedKeys = ['files', 'dependencies', 'capabilities', 'component', 'canvasSdkVersion']
+  if (source?.project && comparedKeys.every(key => sameJson(project[key], source.project[key]))) {
+    log(`${COMPONENT_NAME}: unchanged (${canvas.url ?? canvas.id})`)
+    return canvas.id
+  }
   const published = await api.post(`/canvases/${canvas.id}/publish/`, {
     project,
     prompt: 'Install Runner trade-offs from GitHub-Action-Telemetry',
