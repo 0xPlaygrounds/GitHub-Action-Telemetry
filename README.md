@@ -25,6 +25,8 @@ for the changes from upstream.
   machine facts (cores, CPU model, RAM, disk), job totals and peaks, per-step figures, the
   sccache hit rate when the job used sccache, and the 10 longest processes when tracing ran.
 
+Disk and network figures are for the whole machine, so they include background work of the runner, for example a fresh disk being initialized at the start of a job. Each sample interval counts toward the step that was running at its middle, so steps shorter than `metric_frequency` get approximate figures.
+
 The sampler is a bash loop that uses about 3 MB of memory. Nothing in the action fails the job:
 a problem is reported as a warning.
 

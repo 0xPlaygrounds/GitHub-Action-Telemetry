@@ -37590,6 +37590,7 @@ function procTraceParser_parse(text, options) {
 
 const PROC_TRACER_PID_KEY = 'PROC_TRACER_PID';
 const PROC_TRACER_OUTPUT_KEY = 'PROC_TRACER_OUTPUT';
+const PROC_TRACER_START_KEY = 'PROC_TRACER_START_NS';
 const DEFAULT_PROC_TRACE_CHART_MAX_COUNT = 100;
 const GHA_FILE_NAME_PREFIX = '/home/runner/work/_actions/';
 function isEnabled() {
@@ -37644,6 +37645,7 @@ async function start() {
             if (readFileSync(log, 'utf8').includes('starting tracer')) {
                 core.saveState(PROC_TRACER_PID_KEY, String(child.pid));
                 core.saveState(PROC_TRACER_OUTPUT_KEY, output);
+                core.saveState(PROC_TRACER_START_KEY, String(process.hrtime.bigint()));
                 logger.info(`Started process tracer (pid ${child.pid})`);
                 return true;
             }
@@ -37677,7 +37679,9 @@ async function finish(options) {
         for (let attempt = 0; attempt < 30 && isRunning(pid); attempt++) {
             await new Promise(resolve => setTimeout(resolve, 100));
         }
-        return procTraceParser_parse((0,external_node_fs_namespaceObject.readFileSync)(getState(PROC_TRACER_OUTPUT_KEY), 'utf8'), options);
+        // Processes that started before the tracer, such as boot-time daemons, are not the job's work.
+        const startNs = Number(getState(PROC_TRACER_START_KEY) || 0);
+        return procTraceParser_parse((0,external_node_fs_namespaceObject.readFileSync)(getState(PROC_TRACER_OUTPUT_KEY), 'utf8'), options).filter(command => command.startTimeNs >= startNs);
     }
     catch (error) {
         logger_warning('Unable to finish process tracer', error);
