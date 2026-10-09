@@ -92,4 +92,29 @@ describe('stepUsage', () => {
     expect(steps.map(step => step.name)).toEqual(['Build', 'Test'])
     expect(steps[0].duration_s).toBe(10)
   })
+
+  it('counts an interval that crosses a step boundary in one step only', () => {
+    const job = {
+      steps: [
+        {
+          name: 'A',
+          started_at: '2026-01-01T00:00:00Z',
+          completed_at: '2026-01-01T00:00:03Z'
+        },
+        {
+          name: 'B',
+          started_at: '2026-01-01T00:00:03Z',
+          completed_at: '2026-01-01T00:00:06Z'
+        }
+      ]
+    } as unknown as WorkflowJobType
+    const start = Date.parse('2026-01-01T00:00:00Z')
+    const samples = [0, 2, 4, 6].map(second =>
+      sample(start + second * 1000, { disk_write: second * MB })
+    )
+    const { steps } = stepUsage(job, toIntervals(samples), 2, start + 10_000)
+    const total = steps.reduce((sum, step) => sum + step.disk_write_mb, 0)
+    expect(total).toBe(6)
+    expect(steps.map(step => step.disk_write_mb)).toEqual([2, 4])
+  })
 })

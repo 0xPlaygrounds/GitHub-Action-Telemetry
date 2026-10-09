@@ -94,7 +94,9 @@ export function usage(intervals: Interval[], cores: number): Usage {
 }
 
 // The API can list a step that ended a moment ago without completed_at; the next step's start,
-// or now, then marks its end. Post steps run after the job's work and are left out.
+// or now, then marks its end. Post steps run after the job's work and are left out. The API
+// gives whole seconds, so each interval belongs to the last step that started before the middle
+// of the interval, which counts every interval in one step only.
 export function stepUsage(
   job: WorkflowJobType | undefined,
   intervals: Interval[],
@@ -107,7 +109,7 @@ export function stepUsage(
   const openSteps = jobSteps
     .filter(step => !step.completed_at)
     .map(step => step.name)
-  const steps = jobSteps.flatMap((step, index): StepUsage[] => {
+  const windows = jobSteps.map((step, index) => {
     const next = jobSteps[index + 1]
     const start = Date.parse(step.started_at as string)
     const end =
@@ -116,18 +118,29 @@ export function stepUsage(
         : next?.started_at != null
           ? Date.parse(next.started_at)
           : now
-    const inside = intervals.filter(
-      interval => interval.t >= start && interval.t < end + 1000
-    )
-    if (!inside.length) return []
-    return [
-      {
-        name: step.name,
-        duration_s: Math.round((end - start) / 1000),
-        ...usage(inside, cores)
-      }
-    ]
+    return { name: step.name, start, end }
   })
+  const assigned = windows.map((): Interval[] => [])
+  for (const interval of intervals) {
+    const middle = interval.t - (interval.seconds * 1000) / 2
+    let owner = -1
+    windows.forEach((window, index) => {
+      if (window.start <= middle) owner = index
+    })
+    if (owner >= 0 && middle < windows[owner].end + 1000)
+      assigned[owner].push(interval)
+  }
+  const steps = windows.flatMap((window, index): StepUsage[] =>
+    assigned[index].length
+      ? [
+          {
+            name: window.name,
+            duration_s: Math.round((window.end - window.start) / 1000),
+            ...usage(assigned[index], cores)
+          }
+        ]
+      : []
+  )
   return { steps, openSteps }
 }
 

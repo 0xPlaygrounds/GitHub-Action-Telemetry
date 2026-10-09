@@ -48,7 +48,8 @@ jobs:
         run: |
           job_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
             -q '.jobs[] | select(.name == "run-action") | .id')
-          gh api "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" > log.txt
+          curl -sSfL -H "Authorization: Bearer $GH_TOKEN" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" > log.txt
           sed -E 's/^[0-9TZ:.-]+ //' log.txt \
             | sed -n '/ci_job_resources event:/,/^}$/p' | tail -n +2 > event.json
           jq '.properties | {cpu_cores, cores_busy_avg, mem_peak_mb, disk_write_mb, net_rx_mb, steps: [.steps[].name], top_processes: (.top_processes // [] | .[0:3])}' event.json
