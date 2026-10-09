@@ -1,0 +1,40 @@
+# This workflow runs when a maintainer publishes a draft GitHub release.
+#
+# It checks that package.json's version matches the release tag, then force-
+# moves the major tag (for example v3 for v3.1.0) to the release commit.
+name: Release Published
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  move-major-tag:
+    if: "!github.event.release.prerelease"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - name: Check the version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          VERSION="${TAG#v}"
+          PKG_VERSION=$(jq -r .version package.json)
+          if [[ "$PKG_VERSION" != "$VERSION" ]]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match the release tag ($TAG). Bump package.json (and CHANGELOG.md) in a PR, then publish the release again."
+            exit 1
+          fi
+      - name: Move the major tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          MAJOR="${TAG%%.*}"
+          git tag -f "$MAJOR"
+          git push -f origin "$MAJOR"
