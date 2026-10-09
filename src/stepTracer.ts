@@ -1,119 +1,52 @@
-import { WorkflowJobType } from './interfaces'
-import * as logger from './logger'
+import type { StepUsage, WorkflowJobType } from './interfaces/index.js'
 
 function generateTraceChartForSteps(job: WorkflowJobType): string {
-  let chartContent = ''
-
-  /**
-     gantt
-       title Build
-       dateFormat x
-       axisFormat %H:%M:%S
-       Set up job : milestone, 1658073446000, 1658073450000
-       Collect Workflow Telemetry : 1658073450000, 1658073450000
-       Run actions/checkout@v2 : 1658073451000, 1658073453000
-       Set up JDK 8 : 1658073453000, 1658073458000
-       Build with Maven : 1658073459000, 1658073654000
-       Run invalid command : crit, 1658073655000, 1658073654000
-       Archive test results : done, 1658073655000, 1658073654000
-       Post Set up JDK 8 : 1658073655000, 1658073654000
-       Post Run actions/checkout@v2 : 1658073655000, 1658073655000
-  */
-
-  chartContent = chartContent.concat('gantt', '\n')
-  chartContent = chartContent.concat('\t', `title ${job.name}`, '\n')
-  chartContent = chartContent.concat('\t', `dateFormat x`, '\n')
-  chartContent = chartContent.concat('\t', `axisFormat %H:%M:%S`, '\n')
-
-  for (const step of job.steps || []) {
-    if (!step.started_at || !step.completed_at) {
-      continue
-    }
-    chartContent = chartContent.concat(
-      '\t',
-      `${step.name.replace(/:/g, '-')} : `
-    )
-
-    if (step.name === 'Set up job' && step.number === 1) {
-      chartContent = chartContent.concat('milestone, ')
-    }
-
-    if (step.conclusion === 'failure') {
-      // to show red
-      chartContent = chartContent.concat('crit, ')
-    } else if (step.conclusion === 'skipped') {
-      // to show grey
-      chartContent = chartContent.concat('done, ')
-    }
-
-    const startTime: number = new Date(step.started_at).getTime()
-    const finishTime: number = new Date(step.completed_at).getTime()
-    chartContent = chartContent.concat(
-      `${Math.min(startTime, finishTime)}, ${finishTime}`,
-      '\n'
-    )
-  }
-
-  const postContentItems: string[] = [
-    '',
-    '### Step Trace',
-    '',
-    '```mermaid' + '\n' + chartContent + '\n' + '```'
+  const lines = [
+    'gantt',
+    `\ttitle ${job.name}`,
+    '\tdateFormat x',
+    '\taxisFormat %H:%M:%S'
   ]
-  return postContentItems.join('\n')
+  for (const step of job.steps ?? []) {
+    if (!step.started_at || !step.completed_at) continue
+    let markers = ''
+    if (step.name === 'Set up job' && step.number === 1)
+      markers += 'milestone, '
+    // crit shows red, done shows grey
+    if (step.conclusion === 'failure') markers += 'crit, '
+    else if (step.conclusion === 'skipped') markers += 'done, '
+    const startTime = new Date(step.started_at).getTime()
+    const finishTime = new Date(step.completed_at).getTime()
+    lines.push(
+      `\t${step.name.replace(/:/g, '-')} : ${markers}${Math.min(startTime, finishTime)}, ${finishTime}`
+    )
+  }
+  return ['', '### Step Trace', '', '```mermaid', ...lines, '```'].join('\n')
 }
 
-///////////////////////////
-
-export async function start(): Promise<boolean> {
-  logger.info(`Starting step tracer ...`)
-
-  try {
-    logger.info(`Started step tracer`)
-
-    return true
-  } catch (error: any) {
-    logger.error('Unable to start step tracer')
-    logger.error(error)
-
-    return false
-  }
+function generateUsageTable(steps: StepUsage[], cores: number): string {
+  if (!steps.length) return ''
+  const cell = (value: number | null, unit = ''): string =>
+    value == null ? '–' : `${value}${unit}`
+  return [
+    '',
+    '### Step Resource Use',
+    '',
+    '| Step | Duration | Cores busy (avg) | CPU p95 | Peak RAM | Disk read / write | Network in / out |',
+    '|---|---|---|---|---|---|---|',
+    ...steps.map(
+      step =>
+        `| ${step.name.replace(/\|/g, '\\|')} | ${step.duration_s}s | ${cell(step.cores_busy_avg)} / ${cores} | ${cell(step.cpu_p95_pct, '%')} | ${step.mem_peak_mb} MB | ${step.disk_read_mb} / ${step.disk_write_mb} MB | ${step.net_rx_mb} / ${step.net_tx_mb} MB |`
+    )
+  ].join('\n')
 }
 
-export async function finish(currentJob: WorkflowJobType): Promise<boolean> {
-  logger.info(`Finishing step tracer ...`)
-
-  try {
-    logger.info(`Finished step tracer`)
-
-    return true
-  } catch (error: any) {
-    logger.error('Unable to finish step tracer')
-    logger.error(error)
-
-    return false
-  }
-}
-
-export async function report(
-  currentJob: WorkflowJobType
-): Promise<string | null> {
-  logger.info(`Reporting step tracer result ...`)
-
-  if (!currentJob) {
-    return null
-  }
-
-  try {
-    const postContent: string = generateTraceChartForSteps(currentJob)
-
-    logger.info(`Reported step tracer result`)
-
-    return postContent
-  } catch (error: any) {
-    logger.error('Unable to report step tracer result')
-    logger.error(error)
-
-    return null
-  }
+export function report(
+  job: WorkflowJobType,
+  steps: StepUsage[],
+  cores: number
+): string {
+  return (
+    generateTraceChartForSteps(job) + '\n' + generateUsageTable(steps, cores)
+  )
 }

@@ -1,0 +1,14 @@
+workflow-telemetry-action
+Copyright the catchpoint/workflow-telemetry-action authors (https://github.com/catchpoint/workflow-telemetry-action)
+Modifications copyright 2026 0xPlaygrounds
+
+This product is a fork of catchpoint/workflow-telemetry-action, licensed under the Apache License
+2.0. The files changed from upstream are listed in CHANGELOG.md and in the git history.
+
+proc-tracer/ contains borissmidt/proc-tracer at commit c9bf1503e4558c33256fba3bf45435f7cd49f919
+(https://github.com/borissmidt/proc-tracer), licensed under the Apache License 2.0
+(proc-tracer/LICENSE). Changes: main.go removes the arguments of a process from memory once the
+process ends; build.sh was added.
+
+src/processTracer.ts and src/procTraceParser.ts include changes from
+https://github.com/borissmidt/workflow-telemetry-action (Apache License 2.0).

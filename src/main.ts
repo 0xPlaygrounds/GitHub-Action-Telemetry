@@ -1,24 +1,12 @@
-import * as core from '@actions/core'
-import * as stepTracer from './stepTracer'
-import * as statCollector from './statCollector'
-import * as processTracer from './processTracer'
-import * as logger from './logger'
+import * as logger from './logger.js'
+import * as processTracer from './processTracer.js'
+import * as statCollector from './statCollector.js'
 
 async function run(): Promise<void> {
-  try {
-    logger.info(`Initializing ...`)
-
-    // Start step tracer
-    await stepTracer.start()
-    // Start stat collector
-    await statCollector.start()
-    // Start process tracer
-    await processTracer.start()
-
-    logger.info(`Initialization completed`)
-  } catch (error: any) {
-    logger.error(error.message)
-  }
+  logger.info('Initializing ...')
+  statCollector.start()
+  if (processTracer.isEnabled()) await processTracer.start()
+  logger.info('Initialization completed')
 }
 
-run()
+run().catch(error => logger.warning('Initialization failed', error))

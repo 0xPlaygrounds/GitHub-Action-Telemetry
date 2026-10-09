@@ -1,0 +1,106 @@
+name: proc-tracer
+
+# Builds proc-tracer from proc-tracer/ for x64 and arm64, smoke-tests it, and attests the
+# binaries (`gh attestation verify dist/proc-tracer/<file> -R <this repo>` checks them). A manual
+# run also commits them to dist/proc-tracer/ on the branch it runs on.
+on:
+  pull_request:
+    paths:
+      - "proc-tracer/**"
+      - ".github/workflows/proc-tracer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BPFTOOL_VERSION: v7.7.0
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x64
+            bpftool: amd64
+            bpftool_sha256: 09150596f09356b0ff632dd7f9856e0ea86bf96b269e9bc94278d9a9432a268c
+            regenerate_vmlinux: ""
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            bpftool: arm64
+            bpftool_sha256: d68443d945c146080151eb215bebaa400294ab7ada22af4f5d0a940f5992b9d9
+            regenerate_vmlinux: "1"
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: proc-tracer/go.mod
+          cache-dependency-path: proc-tracer/go.sum
+
+      - name: Install clang, libbpf, and bpftool
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev
+          curl -sSLo /tmp/bpftool.tar.gz "https://github.com/libbpf/bpftool/releases/download/${BPFTOOL_VERSION}/bpftool-${BPFTOOL_VERSION}-${{ matrix.bpftool }}.tar.gz"
+          echo "${{ matrix.bpftool_sha256 }}  /tmp/bpftool.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/bpftool.tar.gz -C /usr/local/bin
+          sudo chmod +x /usr/local/bin/bpftool
+
+      - name: Build
+        env:
+          REGENERATE_VMLINUX: ${{ matrix.regenerate_vmlinux }}
+        run: proc-tracer/build.sh "out/proc-tracer-${{ matrix.arch }}"
+
+      - name: Smoke test
+        run: |
+          sudo "out/proc-tracer-${{ matrix.arch }}" --format json --output /tmp/trace.jsonl 2>/tmp/tracer.log &
+          for _ in $(seq 50); do grep -q 'starting tracer' /tmp/tracer.log && break; sleep 0.1; done
+          sleep 1.2
+          sudo pkill -INT -f "out/proc-tracer-${{ matrix.arch }}"
+          sleep 1
+          jq -e 'select(.name == "sleep" and .durationNs > 1000000000)' /tmp/trace.jsonl
+
+      - name: Attest
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: out/proc-tracer-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: proc-tracer-${{ matrix.arch }}
+          path: out/proc-tracer-${{ matrix.arch }}
+
+  commit:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: proc-tracer-*
+          merge-multiple: true
+          path: dist/proc-tracer
+
+      - name: Commit binaries
+        run: |
+          chmod +x dist/proc-tracer/*
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dist/proc-tracer
+          git diff --cached --quiet && exit 0
+          git commit -m "build: proc-tracer binaries from ${GITHUB_SHA::7}"
+          git push

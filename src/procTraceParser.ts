@@ -1,7 +1,8 @@
-import * as fs from 'fs'
-import * as readline from 'readline'
-import * as logger from './logger'
-import { CompletedCommand, ProcEventParseOptions } from './interfaces'
+import type {
+  CompletedCommand,
+  ProcEventParseOptions
+} from './interfaces/index.js'
+import * as logger from './logger.js'
 
 const SYS_PROCS_TO_BE_IGNORED: Set<string> = new Set([
   'awk',
@@ -33,109 +34,31 @@ const SYS_PROCS_TO_BE_IGNORED: Set<string> = new Set([
   'whoami'
 ])
 
-export async function parse(
-  filePath: string,
-  procEventParseOptions: ProcEventParseOptions
-): Promise<CompletedCommand[]> {
-  const minDuration: number =
-    (procEventParseOptions && procEventParseOptions.minDuration) || -1
-  const traceSystemProcesses: boolean =
-    (procEventParseOptions && procEventParseOptions.traceSystemProcesses) ||
-    false
-
-  const fileStream: fs.ReadStream = fs.createReadStream(filePath)
-  const rl: readline.Interface = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity
-  })
-  // Note: we use the crlfDelay option to recognize all instances of CR LF
-  // ('\r\n') in input file as a single line break.
-
-  const activeCommands: Map<number, any> = new Map<number, any>()
-  const replacedCommands: Map<number, any> = new Map<number, any>()
-  const completedCommands: CompletedCommand[] = []
-  let commandOrder: number = 0
-
-  for await (let line of rl) {
-    line = line.trim()
-    if (!line || !line.length) {
-      continue
-    }
+// Parses the proc-tracer output: one JSON object per completed process.
+export function parse(
+  text: string,
+  options: ProcEventParseOptions
+): CompletedCommand[] {
+  const minDurationNs =
+    options.minDurationMs > 0 ? options.minDurationMs * 1e6 : -1
+  const commands: CompletedCommand[] = []
+  for (const raw of text.split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
     try {
-      if (logger.isDebugEnabled()) {
-        logger.debug(`Parsing trace process event: ${line}`)
-      }
-      const event = JSON.parse(line)
-      event.order = ++commandOrder
-      if (!traceSystemProcesses && SYS_PROCS_TO_BE_IGNORED.has(event.name)) {
+      const command = JSON.parse(line) as CompletedCommand
+      if (command.durationNs < minDurationNs) continue
+      if (
+        !options.traceSystemProcesses &&
+        SYS_PROCS_TO_BE_IGNORED.has(command.name)
+      )
         continue
-      }
-      if ('EXEC' === event.event) {
-        const existingCommand: any = activeCommands.get(event.pid)
-        activeCommands.set(event.pid, event)
-        if (existingCommand) {
-          replacedCommands.set(event.pid, existingCommand)
-        }
-      } else if ('EXIT' === event.event) {
-        let activeCommandCompleted: boolean = false
-        let replacedCommandCompleted: boolean = false
-
-        // Process active command
-        const activeCommand: any = activeCommands.get(event.pid)
-        activeCommands.delete(event.pid)
-        if (activeCommand) {
-          for (let key of Object.keys(event)) {
-            if (!activeCommand.hasOwnProperty(key)) {
-              activeCommand[key] = event[key]
-            }
-          }
-          activeCommandCompleted = true
-        }
-
-        // Process replaced command if there is
-        const replacedCommand: any = replacedCommands.get(event.pid)
-        replacedCommands.delete(event.pid)
-        if (replacedCommand && activeCommandCompleted) {
-          for (let key of Object.keys(event)) {
-            if (!replacedCommand.hasOwnProperty(key)) {
-              replacedCommand[key] = event[key]
-            }
-          }
-          const finishTime: number =
-            activeCommand.startTime + activeCommand.duration
-          replacedCommand.duration = finishTime - replacedCommand.startTime
-          replacedCommandCompleted = true
-        }
-
-        // Complete the replaced command first if there is
-        if (
-          replacedCommandCompleted &&
-          replacedCommand.duration > minDuration
-        ) {
-          completedCommands.push(replacedCommand)
-        }
-
-        // Then complete the actual command
-        if (activeCommandCompleted && activeCommand.duration > minDuration) {
-          completedCommands.push(activeCommand)
-        }
-      } else {
-        if (logger.isDebugEnabled()) {
-          logger.debug(`Unknown trace process event: ${line}`)
-        }
-      }
-    } catch (error: any) {
-      logger.debug(`Unable to parse process trace event (${error}): ${line}`)
+      commands.push({ ...command, args: command.args ?? [] })
+    } catch (error) {
+      logger.debug(
+        `Unable to parse process trace event (${String(error)}): ${line}`
+      )
     }
   }
-
-  completedCommands.sort((a: CompletedCommand, b: CompletedCommand) => {
-    return a.startTime - b.startTime
-  })
-
-  if (logger.isDebugEnabled()) {
-    logger.debug(`Completed commands: ${JSON.stringify(completedCommands)}`)
-  }
-
-  return completedCommands
+  return commands.sort((left, right) => left.startTimeNs - right.startTimeNs)
 }
