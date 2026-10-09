@@ -14,7 +14,8 @@ const { values } = parseArgs({
 const apiKey = process.env.POSTHOG_PERSONAL_API_KEY
 if (!values.project || !apiKey) {
   console.error(
-    'Usage: POSTHOG_PERSONAL_API_KEY=... node posthog/install.mjs --project <id> ' +
+    'Usage: POSTHOG_PERSONAL_API_KEY=... [POSTHOG_HOST=https://eu.posthog.com] ' +
+      'node posthog/install.mjs --project <id> ' +
       '[--channel <id>] [--window-days 14] [--baseline ubuntu-latest]'
   )
   process.exit(1)

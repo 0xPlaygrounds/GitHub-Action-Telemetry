@@ -70,7 +70,7 @@ ruled AS (
             calibrated, 'calibrated',
             'uncalibrated'
         ) AS source,
-        runs >= 3 AND runner_label != source_label AND measured_p50_s > 0 AS backtested
+        runs >= 3 AND runner_label != source_label AND measured_p50_s > 0 AND estimate_s IS NOT NULL AS backtested
     FROM pairs
 )
 SELECT

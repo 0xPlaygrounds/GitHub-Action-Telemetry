@@ -165,12 +165,16 @@ function Header({ backtest }) {
   const describe = (kind) =>
     backtest.error
       ? 'unavailable (see the Backtest query)'
-      : byKind[kind]
+      : byKind[kind]?.median_abs_error != null
       ? `${Math.round(Number(byKind[kind].median_abs_error) * 100)}% (${byKind[kind].pairs} pairs)`
       : 'no pairs yet'
   return (
     <div className="space-y-1">
       <Heading size="xl">Runner trade-offs</Heading>
+      <Text className="text-muted-foreground">
+        Cell key: solid border measured, coloured border calibrated estimate, dashed border
+        uncalibrated estimate, grey does not fit, ⚠ unreliable.
+      </Text>
       <Text>
         Last {WINDOW_DAYS} days. Baseline label {BASELINE_LABEL}. Median estimate error: calibrated{' '}
         {describe('calibrated')}, uncalibrated {describe('uncalibrated')}.
@@ -179,6 +183,10 @@ function Header({ backtest }) {
         Estimates use the average busy cores of each step, so short bursts of parallel work look
         serial: bursty steps such as compiles gain more on bigger runners than estimated. Only
         measured runs remove this bias.
+      </Text>
+      <Text className="text-muted-foreground">
+        The calibrated error uses the same benchmark runs as the per-core speed factors. It shows
+        how well the formula transfers, not a fully independent test.
       </Text>
     </div>
   )
@@ -358,6 +366,16 @@ export default function RunnerTradeoffs() {
   const tradeoffs = useQuery(tradeoffsSql)
   const backtest = useQuery(backtestSql)
 
+  // Drops a saved workflow the list no longer has (renamed or gone), so the dropdown does not
+  // get stuck on a value it never shows and the query does not filter on it forever.
+  useEffect(() => {
+    if (!workflowsSql || workflows.loading || workflows.error || !workflow) return
+    if ((workflows.rows ?? []).some((row) => row.workflow === workflow)) return
+    setWorkflow(null)
+    setSelected(null)
+    if (stateApi) stateApi.set('workflow', null, { scope: 'user' }).catch(() => {})
+  }, [workflowsSql, workflows.loading, workflows.error, workflows.rows, workflow])
+
   const jobs = useMemo(() => {
     const byJob = new Map()
     for (const row of tradeoffs.rows ?? []) {
@@ -408,7 +426,7 @@ export default function RunnerTradeoffs() {
             ]}
           >
             {!jobs.length ? (
-              <Text>{EMPTY_HINT}</Text>
+              <Text>{workflow ? `No runs of workflow ${workflow} in the window.` : EMPTY_HINT}</Text>
             ) : (
               <div className="overflow-x-auto">
                 <Table>

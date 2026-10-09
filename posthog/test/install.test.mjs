@@ -73,7 +73,7 @@ describe('componentProject', () => {
     )
     expect(project.files['index.html']).toBe('<shell>')
     expect(project.files['src/settings.js']).toBe(
-      "export const WINDOW_DAYS = 14\nexport const BASELINE_LABEL = 'ubuntu-latest'\n"
+      'export const WINDOW_DAYS = 14\nexport const BASELINE_LABEL = "ubuntu-latest"\n'
     )
     expect(Object.keys(project.files).sort()).toEqual([
       'index.html',
@@ -301,6 +301,35 @@ describe('upsertComponent', () => {
       ]
     ])
   })
+
+  it('throws when the publish build fails', async () => {
+    const api = {
+      get: async path => {
+        if (path.startsWith('/canvases/?')) {
+          return {
+            results: [
+              {
+                id: 'c1',
+                name: 'Runner trade-offs',
+                kind: 'component',
+                url: 'https://x/c1'
+              }
+            ]
+          }
+        }
+        return { current_version_id: 'v1', project: null }
+      },
+      post: async path => {
+        if (path === '/canvases/c1/publish/') {
+          return { build: { status: 'failed', errors: ['boom'] } }
+        }
+        return { id: 'new' }
+      }
+    }
+    await expect(
+      upsertComponent(api, { channelId: 'c1', settings })
+    ).rejects.toThrow('The canvas build failed')
+  })
 })
 
 describe('ensureGrid', () => {
@@ -314,7 +343,9 @@ describe('ensureGrid', () => {
         }
         return {
           current_version_id: 'v1',
-          layout: { placements: [{ id: 'runner-tradeoffs' }] }
+          layout: {
+            placements: [{ id: 'runner-tradeoffs', component: 'k1' }]
+          }
         }
       },
       post: async (path, body) => {
@@ -326,5 +357,83 @@ describe('ensureGrid', () => {
       'unchanged'
     )
     expect(calls.filter(call => call[0] === 'POST')).toEqual([])
+  })
+
+  it('creates the grid and publishes one placement at y = 0 when none exists', async () => {
+    const calls = []
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) return { results: [] }
+        return null
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        if (path === '/canvases/') return { id: 'g1' }
+        return {}
+      }
+    }
+    expect(await ensureGrid(api, { channelId: 'c1', componentId: 'k1' })).toBe(
+      'created'
+    )
+    const publishCalls = calls.filter(
+      call => call[0] === 'POST' && call[1] === '/canvases/g1/layout/publish/'
+    )
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0][2].layout.placements).toEqual([
+      {
+        id: 'runner-tradeoffs',
+        status: 'live',
+        component: 'k1',
+        x: 0,
+        y: 0,
+        w: 12,
+        h: 24,
+        config: {}
+      }
+    ])
+  })
+
+  it('updates the placement component when it points at an old component id', async () => {
+    const calls = []
+    const existingPlacement = {
+      id: 'runner-tradeoffs',
+      status: 'live',
+      component: 'old',
+      x: 0,
+      y: 24,
+      w: 12,
+      h: 24,
+      config: { repo: 'o/r' }
+    }
+    const api = {
+      get: async path => {
+        calls.push(['GET', path])
+        if (path.startsWith('/canvases/?')) {
+          return { results: [{ id: 'g1', name: 'CI runners', kind: 'grid' }] }
+        }
+        return {
+          current_version_id: 'v1',
+          layout: {
+            grid: { columns: 12, rowHeight: 48, gap: 12 },
+            placements: [existingPlacement]
+          }
+        }
+      },
+      post: async (path, body) => {
+        calls.push(['POST', path, body])
+        return {}
+      }
+    }
+    expect(await ensureGrid(api, { channelId: 'c1', componentId: 'new' })).toBe(
+      'updated'
+    )
+    const publishCalls = calls.filter(
+      call => call[0] === 'POST' && call[1] === '/canvases/g1/layout/publish/'
+    )
+    expect(publishCalls).toHaveLength(1)
+    expect(publishCalls[0][2].layout.placements).toEqual([
+      { ...existingPlacement, component: 'new' }
+    ])
   })
 })

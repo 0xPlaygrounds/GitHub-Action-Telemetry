@@ -52,7 +52,7 @@ export function componentProject(source, { windowDays, baselineLabel }) {
       'index.html': base.files['index.html'],
       'src/canvas.tsx': canvasFile('src/canvas.tsx'),
       'src/view.js': canvasFile('src/view.js'),
-      'src/settings.js': `export const WINDOW_DAYS = ${windowDays}\nexport const BASELINE_LABEL = '${baselineLabel}'\n`
+      'src/settings.js': `export const WINDOW_DAYS = ${windowDays}\nexport const BASELINE_LABEL = ${JSON.stringify(baselineLabel)}\n`
     },
     dependencies,
     canvasSdkVersion:
@@ -178,16 +178,19 @@ export async function ensureGrid(api, { channelId, componentId }, log = console.
   const current = await api.get(`/canvases/${grid.id}/layout/`)
   const layout = current?.layout ?? null
   const placements = layout?.placements ?? []
-  if (placements.some(placement => placement.id === PLACEMENT_ID)) {
+  const existing = placements.find(placement => placement.id === PLACEMENT_ID)
+  if (existing && existing.component === componentId) {
     log(`${GRID_NAME}: unchanged`)
     return 'unchanged'
   }
   const bottom = Math.max(0, ...placements.map(p => p.y + p.h))
-  await api.post(`/canvases/${grid.id}/layout/publish/`, {
-    layout: {
-      schemaVersion: 1,
-      grid: layout?.grid ?? { columns: 12, rowHeight: 48, gap: 12 },
-      placements: [
+  const nextPlacements = existing
+    ? placements.map(placement =>
+        placement.id === PLACEMENT_ID
+          ? { ...placement, component: componentId }
+          : placement
+      )
+    : [
         ...placements,
         {
           id: PLACEMENT_ID,
@@ -200,12 +203,18 @@ export async function ensureGrid(api, { channelId, componentId }, log = console.
           config: {}
         }
       ]
+  await api.post(`/canvases/${grid.id}/layout/publish/`, {
+    layout: {
+      schemaVersion: 1,
+      grid: layout?.grid ?? { columns: 12, rowHeight: 48, gap: 12 },
+      placements: nextPlacements
     },
-    prompt: 'Add Runner trade-offs',
+    prompt: existing ? 'Update Runner trade-offs' : 'Add Runner trade-offs',
     expected_current_version_id: current?.current_version_id ?? null
   })
-  log(`${GRID_NAME}: created (${grid.url ?? grid.id})`)
-  return 'created'
+  const status = existing ? 'updated' : 'created'
+  log(`${GRID_NAME}: ${status} (${grid.url ?? grid.id})`)
+  return status
 }
 
 export async function upsertView(api, name, sql) {

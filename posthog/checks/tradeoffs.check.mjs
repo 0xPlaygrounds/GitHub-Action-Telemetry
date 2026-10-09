@@ -39,7 +39,9 @@ const fixtures = {
       ['o/r', 'lint', 'small', 2, 120, 130, 500, 64, 3],
       ['o/r', 'nosteps', 'small', 5, 90, 95, 100, 0, 1],
       ['o/r', 'instant', 'small', 5, 10, 12, 100, 0, 1],
-      ['o/r', 'instant', 'big', 3, 0, 0, 100, 0, 1]
+      ['o/r', 'instant', 'big', 3, 0, 0, 100, 0, 1],
+      ['o/r', 'coldstart', 'small', 10, 50, 55, 100, 0, 1],
+      ['o/r', 'coldstart', 'big', 3, 40, 45, 100, 0, 1]
     ]
   ),
   ci_job_sources: fixture(
@@ -55,7 +57,8 @@ const fixtures = {
       ['o/r', 'build', 'CI', 'small', 'small', 10],
       ['o/r', 'lint', 'CI', 'small', 'small', 2],
       ['o/r', 'nosteps', 'CI', 'small', 'small', 5],
-      ['o/r', 'instant', 'CI', 'small', 'small', 5]
+      ['o/r', 'instant', 'CI', 'small', 'small', 5],
+      ['o/r', 'coldstart', 'CI', 'small', 'small', 10]
     ]
   ),
   ci_step_tradeoffs: fixture(
@@ -81,7 +84,9 @@ test('ci_job_tradeoffs applies the rules', checkOptions, async () => {
   const sql = withFixtures(readView('ci_job_tradeoffs', options), fixtures)
   const rows = await runQuery(sql)
   assertRows(
-    rows.filter(row => row.job_key !== 'instant'),
+    rows.filter(
+      row => row.job_key !== 'instant' && row.job_key !== 'coldstart'
+    ),
     [
       {
         job_key: 'build',
@@ -258,6 +263,30 @@ test(
       [
         {
           job_key: 'instant',
+          runner_label: 'big',
+          source: 'measured',
+          backtest_error: null,
+          backtest_kind: null
+        }
+      ],
+      ['job_key', 'runner_label']
+    )
+  }
+)
+
+test(
+  'ci_job_tradeoffs gives no backtest for a job with no step data',
+  checkOptions,
+  async () => {
+    const sql = withFixtures(readView('ci_job_tradeoffs', options), fixtures)
+    const rows = await runQuery(sql)
+    assertRows(
+      rows.filter(
+        row => row.job_key === 'coldstart' && row.runner_label === 'big'
+      ),
+      [
+        {
+          job_key: 'coldstart',
           runner_label: 'big',
           source: 'measured',
           backtest_error: null,

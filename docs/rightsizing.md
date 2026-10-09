@@ -17,14 +17,24 @@ label: you read the trade-offs and decide.
 ## Install
 
 ```bash
-POSTHOG_PERSONAL_API_KEY=phx_... node posthog/install.mjs --project <project id> \
-  --channel <channel id> [--window-days 14] [--baseline ubuntu-latest]
+POSTHOG_PERSONAL_API_KEY=phx_... [POSTHOG_HOST=https://eu.posthog.com] node posthog/install.mjs \
+  --project <project id> --channel <channel id> [--window-days 14] [--baseline ubuntu-latest]
 ```
 
 The key needs `warehouse_view:read`, `warehouse_view:write`, `canvas:read` and `canvas:write`.
 Without `--channel`, the script installs the views only. A second run changes nothing unless the
 SQL or the canvas source changed. `--window-days` and `--baseline` are install options: changing
-either one needs a new install run.
+either one needs a new install run. `POSTHOG_HOST` is optional; the default is
+`https://us.posthog.com`.
+
+## Upgrade from 3.0
+
+Events recorded before 3.1.0 have no `repo` and use the job name as `job_key`. For one window
+after you upgrade, a job can show twice: once with an empty `repo` and once with `owner/name`.
+Set the canvas placement's `repo` filter to hide the old rows.
+
+Benchmark runs recorded before 3.1.0 cannot pair across labels. Run the runner-benchmark
+workflow again after you upgrade, so the view has pairs to calibrate from.
 
 ## How to read it
 
@@ -33,8 +43,8 @@ Each cell is one job on one label:
 | Style | Meaning |
 |---|---|
 | solid | measured: 3 or more successful runs on the label in the window (p50) |
-| outline | estimate, calibrated: both labels have a speed factor from benchmark runs |
-| dashed | estimate, not calibrated: per-core speed is taken as equal |
+| coloured border | estimate, calibrated: both labels have a speed factor from benchmark runs |
+| dashed | estimate, not calibrated: a label without a speed factor uses k = 1 |
 | grey | does not fit: the job's median peak memory is above 90% of the label's memory |
 | ⚠ | unreliable: the job used swap or had more than 20% I/O wait |
 
@@ -42,7 +52,8 @@ A job's workflow name is the name of its latest normal run (a push or pull_reque
 started by hand), or of its latest run when it has no normal run yet.
 
 The header shows the median estimate error of each kind, from jobs measured on more than one
-label (the backtest).
+label (the backtest). The calibrated error uses the per-core speed factors from the same
+benchmark runs, so it shows how well the formula transfers, not a fully independent test.
 
 ## Model
 
