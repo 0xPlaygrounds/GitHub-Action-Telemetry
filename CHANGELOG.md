@@ -5,9 +5,11 @@
 ### Added
 
 - `repo` property (`owner/name`) on `ci_job_resources`, `ci_job` and `ci_run`.
-- `job_key` input and property on `ci_job_resources`. It defaults to the job id in the workflow
-  file, so runs of one job on different runner labels or from different calling workflows can be
-  compared.
+- `job_key` input and property on `ci_job_resources`. It defaults to `<workflow file>/<job id>`,
+  so runs of one job on different runner labels or from different calling workflows can be
+  compared. For a job in a reusable workflow, the workflow file is the caller's file; to compare
+  runs of one job across workflows, set the same `job_key` in the job, for example
+  `job_key: ci-typescript/lint-and-test`.
 - `docs/events.md`: the event contract.
 - `posthog/`: saved SQL views and the "Runner trade-offs" canvas for runner rightsizing, with an
   install script (`node posthog/install.mjs`). See `docs/rightsizing.md`.

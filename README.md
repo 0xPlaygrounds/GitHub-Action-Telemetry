@@ -68,7 +68,7 @@ also when the job fails or is cancelled.
 | `proc_trace_table_show`      | `false`                    | Show all processes with their arguments.                                 |
 | `comment_on_pr`              | `false`                    | Also post the report as a pull request comment (`pull-requests: write`). |
 | `job_summary`                | `true`                     | Write the report to the job summary.                                     |
-| `job_key`                    |                            | Key that identifies this job across runner labels and calling workflows. Defaults to the job id in the workflow file (`github.job`). Set it for a matrix that runs different work under one job id. |
+| `job_key`                    |                            | Key that identifies this job across runner labels and calling workflows. Defaults to `<workflow file>/<job id>`, for example `ci-rust.yaml/test`; for a job in a reusable workflow, the workflow file is the caller's file. Set it for a matrix that runs different work under one job id. |
 
 ## Collect run and job timings and cost
 

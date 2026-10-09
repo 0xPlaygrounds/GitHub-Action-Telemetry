@@ -13,6 +13,11 @@ label: you read the trade-offs and decide.
   (a runner benchmark). These runs also calibrate the per-core speed of each label.
 - A matrix that runs different work under one job id needs `job_key`, for example
   `job_key: warm-${{ matrix.kind }}`.
+- `job_key` defaults to `<workflow file>/<job id>`. For a job in a reusable workflow, the
+  workflow file is the caller's file, not the reusable workflow's file. To compare runs of one
+  job across workflows (for example a runner benchmark that calls a reusable CI workflow, and the
+  direct CI runs), set the same `job_key` in the job, for example
+  `job_key: ci-typescript/lint-and-test`.
 
 ## Install
 
