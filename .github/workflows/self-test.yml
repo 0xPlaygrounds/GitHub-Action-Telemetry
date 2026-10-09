@@ -55,6 +55,8 @@ jobs:
           jq '.properties | {cpu_cores, cores_busy_avg, mem_peak_mb, disk_write_mb, net_rx_mb, steps: [.steps[].name], top_processes: (.top_processes // [] | .[0:3])}' event.json
           jq -e '
             .event == "ci_job_resources"
+            and .properties.job_key == "run-action"
+            and .properties.repo == $ENV.GITHUB_REPOSITORY
             and .properties.cores_busy_avg > 0
             and .properties.mem_peak_mb > 0
             and .properties.disk_write_mb >= 400

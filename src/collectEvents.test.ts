@@ -75,4 +75,14 @@ describe('buildEvents', () => {
       jobs_skipped: 1
     })
   })
+
+  it('adds the repository to job and run events', () => {
+    const events = buildEvents(
+      'o/r',
+      run,
+      [job(1, ['big'], '2026-01-01T00:00:00Z', '2026-01-01T00:01:01Z')],
+      { big: 0.022 }
+    )
+    expect(events.map(event => event.properties.repo)).toEqual(['o/r', 'o/r'])
+  })
 })

@@ -1,6 +1,6 @@
 {
   "name": "workflow-telemetry-action",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "private": true,
   "type": "module",
   "description": "GitHub Action that collects CPU, memory, disk, network, step, and process telemetry from workflow jobs, shows it in the job summary, and can send it to PostHog",

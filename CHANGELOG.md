@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.1.0
+
+### Added
+
+- `repo` property (`owner/name`) on `ci_job_resources`, `ci_job` and `ci_run`.
+- `job_key` input and property on `ci_job_resources`. It defaults to the job id in the workflow
+  file, so runs of one job on different runner labels or from different calling workflows can be
+  compared.
+- `docs/events.md`: the event contract.
+
 ## 3.0.0
 
 Changes from catchpoint/workflow-telemetry-action v2.0.0. All files under `src/`, `action.yml`,
