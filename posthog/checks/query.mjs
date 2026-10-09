@@ -53,6 +53,10 @@ export function assertRows(actual, expected, keys) {
           `${where}: ${got} != ${value}`
         )
       } else if (typeof value === 'boolean') {
+        assert.ok(
+          got !== null && got !== undefined,
+          `${where}: got NULL, expected ${value}`
+        )
         assert.equal(Boolean(Number(got)), value, where)
       } else {
         assert.equal(got, value, where)
