@@ -80,6 +80,7 @@ test(
         ['o/r', 'build', '1', 'big', 'short', 5, 1.0],
         ['o/r', 'build', '2', 'small', 'a', 100, 1.0],
         ['o/r', 'build', '2', 'big', 'a', 100, 1.0],
+        ['o/r', 'build', '2', 'small', 'a', 100, 1.0],
         ['o/r', 'build', '3', 'fast', 'a', 60, 1.0]
       ]
     )

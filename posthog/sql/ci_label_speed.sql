@@ -2,12 +2,25 @@
 -- (k = 1). k is the median of baseline duration / label duration over single-threaded steps
 -- (at most 1.2 busy cores on both labels, at least 20 s on the baseline) that ran on both labels
 -- in the same run, as in a runner benchmark. A label without such steps has no row.
+-- Re-run attempts of a job in one run count as one pair.
+WITH steps AS (
+    SELECT
+        repo,
+        run_id,
+        job_key,
+        step_name,
+        runner_label,
+        quantile(0.5)(duration_s) AS duration_s,
+        max(cores_busy_avg) AS cores_busy_avg
+    FROM ci_step_runs AS runs
+    GROUP BY repo, run_id, job_key, step_name, runner_label
+)
 SELECT
     l.runner_label AS runner_label,
     quantile(0.5)(b.duration_s / l.duration_s) AS k,
     count() AS pairs
-FROM ci_step_runs AS b
-INNER JOIN ci_step_runs AS l
+FROM steps AS b
+INNER JOIN steps AS l
     ON b.repo = l.repo
     AND b.run_id = l.run_id
     AND b.job_key = l.job_key
