@@ -1,24 +1,26 @@
 import * as core from '@actions/core'
 
-const LOG_HEADER: string = '[Workflow Telemetry]'
+const LOG_HEADER = '[Workflow Telemetry]'
 
 export function isDebugEnabled(): boolean {
   return core.isDebug()
 }
 
-export function debug(msg: string) {
-  core.debug(LOG_HEADER + ' ' + msg)
+export function debug(msg: string): void {
+  core.debug(`${LOG_HEADER} ${msg}`)
 }
 
-export function info(msg: string) {
-  core.info(LOG_HEADER + ' ' + msg)
+export function info(msg: string): void {
+  core.info(`${LOG_HEADER} ${msg}`)
 }
 
-export function error(msg: string | Error) {
-  if (msg instanceof String || typeof msg === 'string') {
-    core.error(LOG_HEADER + ' ' + msg)
-  } else {
-    core.error(LOG_HEADER + ' ' + (msg as Error).name)
-    core.error(msg as Error)
-  }
+// The action reports problems as warnings, so telemetry never fails the job it measures.
+export function warning(msg: string, error?: unknown): void {
+  const detail =
+    error instanceof Error
+      ? `: ${error.message}`
+      : error == null
+        ? ''
+        : `: ${JSON.stringify(error)}`
+  core.warning(`${LOG_HEADER} ${msg}${detail}`)
 }

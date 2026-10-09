@@ -1,0 +1,3 @@
+proctracer_bpfe*.go
+proctracer_bpfe*.o
+proc-tracer

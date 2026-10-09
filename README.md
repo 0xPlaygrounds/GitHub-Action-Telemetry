@@ -1,77 +1,122 @@
 # workflow-telemetry-action
 
-A GitHub Action to track and monitor the 
-- workflow runs, jobs and steps
-- resource metrics 
-- and process activities 
-of your GitHub Action workflow runs. 
-If the run is triggered via a Pull Request, it will create a comment on the connected PR with the results 
-and/or publishes the results to the job summary. 
+A GitHub Action that collects telemetry from a workflow job: step timings, CPU, memory, disk,
+and network use, and optionally every process the job runs. It writes the report to the job
+summary as Mermaid charts and can send one event per job to [PostHog](https://posthog.com) so you
+can compare jobs and runners over time. A second action, [`collect`](#collect-run-and-job-timings-and-cost),
+sends timings and cost of whole workflow runs.
 
-The action traces the jobs' step executions and shows them in trace chart,
+This is a maintained fork of
+[catchpoint/workflow-telemetry-action](https://github.com/catchpoint/workflow-telemetry-action)
+by Serkan Özal and contributors. The process tracer is built from
+[borissmidt/proc-tracer](https://github.com/borissmidt/proc-tracer). See [CHANGELOG.md](CHANGELOG.md)
+for the changes from upstream.
 
-And collects the following metrics:
-- CPU Load (user and system) in percentage
-- Memory usage (used and free) in MB
-- Network I/O (read and write) in MB
-- Disk I/O (read and write) in MB
+## What it reports
 
-And traces the process executions (only supported on `Ubuntu`) 
+- **Step trace**: a Gantt chart of the job's steps, and a table of each step's duration, busy
+  cores, CPU p95, peak memory, disk read/write, and network in/out.
+- **Resource use**: charts of CPU (busy, I/O wait), memory (used, swap), disk I/O, network I/O,
+  and workspace disk use, sampled every `metric_frequency` seconds from `/proc`.
+- **Process trace** (opt-in): a Gantt chart of the longest processes, and optionally a table of all
+  processes with their arguments. It uses an eBPF program, so it needs passwordless `sudo` and a
+  kernel with BTF type information (Ubuntu 20.04 and later), on x64 or arm64.
+- **PostHog event** (when `posthog_api_key` is set): one `ci_job_resources` event per job with
+  machine facts (cores, CPU model, RAM, disk), job totals and peaks, per-step figures, the
+  sccache hit rate when the job used sccache, and the 10 longest processes when tracing ran.
 
-as trace chart with the following information:
-- Name
-- Start time
-- Duration (in ms)
-- Finish time
-- Exit status as success or fail (highlighted as red)
+Disk and network figures are for the whole machine, so they include background work of the runner, for example a fresh disk being initialized at the start of a job. Each sample interval counts toward the step that was running at its middle, so steps shorter than `metric_frequency` get approximate figures.
 
-and as trace table with the following information:
-- Name
-- Id
-- Parent id
-- User id
-- Start time
-- Duration (in ms)
-- Exit code
-- File name
-- Arguments
-
-### Example Output
-
-An example output of a simple workflow run will look like this.
-
-![Step Trace Example](/images/step-trace-example.png)
-
-![Metrics Example](/images/metrics-example.png)
-
-![Process Trace Example](/images/proc-trace-example.png)
+The sampler is a bash loop that uses about 3 MB of memory. Nothing in the action fails the job:
+a problem is reported as a warning.
 
 ## Usage
 
-To use the action, add the following step before the steps you want to track.
-
 ```yaml
 permissions:
-  pull-requests: write
+  actions: read # the post step reads the job's own steps
+
 jobs:
-  workflow-telemetry-action:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
+      - name: Collect workflow telemetry
+        uses: 0xPlaygrounds/GitHub-Action-Telemetry@v3
+        with:
+          posthog_api_key: ${{ secrets.POSTHOG_PROJECT_KEY }} # optional
+
+      - uses: actions/checkout@v5
+      # ... the job's other steps
 ```
 
-## Configuration
+Put the action first, so it measures all later steps. Its post step runs at the end of the job,
+also when the job fails or is cancelled.
 
-| Option                       | Requirement       | Description
-|------------------------------| ---               | ---
-| `github_token`               | Optional          | An alternative GitHub token, other than the default provided by GitHub Actions runner.
-| `metric_frequency`           | Optional          | Metric collection frequency in seconds. Must be a number. Defaults to `5`.
-| `proc_trace_min_duration`    | Optional          | Puts minimum limit for process execution duration to be traced. Must be a number. Defaults to `-1` which means process duration filtering is not applied.
-| `proc_trace_sys_enable`      | Optional          | Enables tracing default system processes (`aws`, `cat`, `sed`, ...). Defaults to `false`.
-| `proc_trace_chart_show`      | Optional          | Enables showing traced processes in trace chart. Defaults to `true`.
-| `proc_trace_chart_max_count` | Optional          | Maximum number of processes to be shown in trace chart (applicable if `proc_trace_chart_show` input is `true`). Must be a number. Defaults to `100`.
-| `proc_trace_table_show`      | Optional          | Enables showing traced processes in trace table. Defaults to `true`.
-| `comment_on_pr`              | Optional          | Set to `true` to publish the results as comment to the PR (applicable if workflow run is triggered by PR). Defaults to `true`. <br/> Requires `pull-requests: write` permission
-| `job_summary`                | Optional          | Set to `true` to publish the results as part of the [job summary page](https://github.blog/2022-05-09-supercharging-github-actions-with-job-summaries/) of the workflow run. Defaults to `true`.
-| `theme`                      | Optional          | Set to `dark` to generate charts compatible with Github **dark** mode. Defaults to `light`.
+### Inputs
+
+| Input                        | Default                    | Description                                                              |
+| ---------------------------- | -------------------------- | ------------------------------------------------------------------------ |
+| `github_token`               | `${{ github.token }}`      | Token used to read the job's steps (`actions: read`).                    |
+| `metric_frequency`           | `5`                        | Seconds between two resource samples.                                    |
+| `posthog_api_key`            |                            | PostHog project API key. Without it, the event is printed in the log.    |
+| `posthog_host`               | `https://us.i.posthog.com` | PostHog ingestion host.                                                  |
+| `proc_trace_enable`          | `false`                    | Trace every process with eBPF.                                           |
+| `proc_trace_min_duration`    | `-1`                       | Minimum process duration in milliseconds; `-1` traces all.               |
+| `proc_trace_sys_enable`      | `false`                    | Also trace common system processes (`cat`, `sed`, ...).                  |
+| `proc_trace_chart_show`      | `true`                     | Show the process chart.                                                  |
+| `proc_trace_chart_max_count` | `100`                      | Maximum number of processes in the chart.                                |
+| `proc_trace_table_show`      | `false`                    | Show all processes with their arguments.                                 |
+| `comment_on_pr`              | `false`                    | Also post the report as a pull request comment (`pull-requests: write`). |
+| `job_summary`                | `true`                     | Write the report to the job summary.                                     |
+
+## Collect run and job timings and cost
+
+The `collect` action reads one finished workflow run from the GitHub API and sends one `ci_job`
+event per job (queue time, duration, runner, steps, billable minutes, cost) and one `ci_run` event
+for the run. A `workflow_run` trigger must live in the repository it watches, so add a small
+workflow there:
+
+```yaml
+name: CI telemetry
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: 0xPlaygrounds/GitHub-Action-Telemetry/collect@v3
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          posthog_api_key: ${{ secrets.POSTHOG_PROJECT_KEY }}
+          runner_prices: '{"ubuntu-latest": 0.006, "my-8-core-runner": 0.022}'
+```
+
+`runner_prices` maps runner labels to USD per minute. GitHub bills each job in whole minutes, so
+the cost is billable minutes × price. Without it, the GitHub standard x64 Linux prices are used.
+
+## Privacy
+
+The action sends data only to the GitHub API and, when `posthog_api_key` is set, to PostHog. The
+PostHog event never contains process arguments, because they can contain secrets. The process
+table in the job summary does show arguments; it is off by default.
+
+## Development
+
+```bash
+npm ci
+npm run all   # format check, lint, type check, tests, and bundles in dist/ and collect/dist/
+```
+
+The bundles are committed, so run `npm run all` before you commit. The `proc-tracer` workflow
+builds `dist/proc-tracer/proc-tracer-{x64,arm64}` from `proc-tracer/` and attests them; check a
+binary with `gh attestation verify dist/proc-tracer/proc-tracer-x64 -R 0xPlaygrounds/GitHub-Action-Telemetry`.
+
+## License
+
+[Apache License 2.0](LICENSE.md). See [NOTICE](NOTICE).

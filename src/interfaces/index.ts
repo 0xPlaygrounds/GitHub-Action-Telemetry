@@ -1,113 +1,69 @@
-// eslint-disable-next-line import/no-unresolved
-import { components } from '@octokit/openapi-types'
+import type { components } from '@octokit/openapi-types'
 
 export type WorkflowJobType = components['schemas']['job']
+export type WorkflowRunType = components['schemas']['workflow-run']
 
-export interface CPUStats {
-  readonly time: number
-  readonly totalLoad: number
-  readonly userLoad: number
-  readonly systemLoad: number
+// One line written by sampler.sh. Counters are cumulative; the post step uses differences.
+export interface Sample {
+  readonly t: number
+  readonly user: number
+  readonly system: number
+  readonly idle: number
+  readonly iowait: number
+  readonly mem_used: number
+  readonly swap_used: number
+  readonly load1: number
+  readonly disk_free: number
+  readonly disk_used: number
+  readonly disk_read: number
+  readonly disk_write: number
+  readonly net_rx: number
+  readonly net_tx: number
 }
 
-export interface MemoryStats {
-  readonly time: number
-  readonly totalMemoryMb: number
-  readonly activeMemoryMb: number
-  readonly availableMemoryMb: number
+// The usage between two samples, timed at the later one. Percentages are of all cores together.
+export interface Interval {
+  readonly t: number
+  readonly seconds: number
+  readonly cpu: number
+  readonly user: number
+  readonly system: number
+  readonly iowait: number
+  readonly memUsed: number
+  readonly diskReadBytes: number
+  readonly diskWriteBytes: number
+  readonly netRxBytes: number
+  readonly netTxBytes: number
 }
 
-export interface NetworkStats {
-  readonly time: number
-  readonly rxMb: number
-  readonly txMb: number
+export interface Usage {
+  readonly cpu_avg_pct: number | null
+  readonly cpu_p95_pct: number | null
+  readonly cores_busy_avg: number | null
+  readonly mem_peak_mb: number
+  readonly disk_read_mb: number
+  readonly disk_write_mb: number
+  readonly net_rx_mb: number
+  readonly net_tx_mb: number
 }
 
-export interface DiskStats {
-  readonly time: number
-  readonly rxMb: number
-  readonly wxMb: number
-}
-
-export interface DiskSizeStats {
-  readonly time: number
-  readonly availableSizeMb: number
-  readonly usedSizeMb: number
-}
-
-export interface ProcessedStats {
-  readonly x: number
-  readonly y: number
-}
-
-export interface ProcessedCPUStats {
-  readonly userLoadX: ProcessedStats[]
-  readonly systemLoadX: ProcessedStats[]
-}
-
-export interface ProcessedMemoryStats {
-  readonly activeMemoryX: ProcessedStats[]
-  readonly availableMemoryX: ProcessedStats[]
-}
-
-export interface ProcessedNetworkStats {
-  readonly networkReadX: ProcessedStats[]
-  readonly networkWriteX: ProcessedStats[]
-}
-
-export interface ProcessedDiskStats {
-  readonly diskReadX: ProcessedStats[]
-  readonly diskWriteX: ProcessedStats[]
-}
-
-export interface ProcessedDiskSizeStats {
-  readonly diskAvailableX: ProcessedStats[]
-  readonly diskUsedX: ProcessedStats[]
-}
-
-export interface LineGraphOptions {
-  readonly label: string
-  readonly axisColor: string
-  readonly line: {
-    readonly label: string
-    readonly color: string
-    readonly points: ProcessedStats[]
-  }
-}
-
-export interface StackedArea {
-  readonly label: string
-  readonly color: string
-  readonly points: ProcessedStats[]
-}
-
-export interface StackedAreaGraphOptions {
-  readonly label: string
-  readonly axisColor: string
-  readonly areas: StackedArea[]
-}
-
-export interface GraphResponse {
-  readonly id: string
-  readonly url: string
+export interface StepUsage extends Usage {
+  readonly name: string
+  readonly duration_s: number
 }
 
 export interface CompletedCommand {
-  readonly ts: string
-  readonly event: string
   readonly name: string
-  readonly uid: number
   readonly pid: number
-  readonly ppid: string
-  readonly startTime: number
-  readonly fileName: string
+  readonly ppid: number
+  readonly startTimeNs: number
+  readonly fileName?: string
   readonly args: string[]
-  readonly duration: number
+  readonly durationNs: number
   readonly exitCode: number
-  readonly order: number
 }
 
 export interface ProcEventParseOptions {
-  readonly minDuration: number
+  readonly minDurationMs: number
   readonly traceSystemProcesses: boolean
 }

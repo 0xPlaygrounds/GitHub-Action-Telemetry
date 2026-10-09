@@ -1,0 +1,30 @@
+name: "Workflow Telemetry: collect run"
+description: "Send one ci_job event per job and one ci_run event per workflow run (timings, queue time, runner, cost) to PostHog"
+author: "0xPlaygrounds"
+inputs:
+  github_token:
+    description: "GitHub API token with `actions: read`."
+    default: ${{ github.token }}
+    required: false
+  run_id:
+    description: "Workflow run to report, usually `github.event.workflow_run.id`."
+    required: true
+  posthog_api_key:
+    description: "PostHog project API key. When empty, the events are printed in the log."
+    default: ""
+    required: false
+  posthog_host:
+    description: "PostHog ingestion host. Defaults to 'https://us.i.posthog.com'."
+    default: "https://us.i.posthog.com"
+    required: false
+  runner_prices:
+    description: 'JSON object of USD per minute by runner label, for example {"ubuntu-latest": 0.006}. Defaults to the GitHub standard x64 Linux prices.'
+    default: ""
+    required: false
+
+runs:
+  using: "node24"
+  main: dist/index.js
+branding:
+  icon: "activity"
+  color: "yellow"

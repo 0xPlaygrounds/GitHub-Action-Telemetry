@@ -1,0 +1,64 @@
+name: self-test
+
+# Runs the action from this branch on a real runner with some CPU, disk, and network load, then
+# reads that job's log and checks the printed ci_job_resources event.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  run-action:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Collect workflow telemetry
+        uses: ./
+        with:
+          metric_frequency: 2
+          proc_trace_enable: true
+
+      - name: CPU load
+        run: |
+          for _ in $(seq "$(nproc)"); do timeout 15 bash -c 'while :; do :; done' & done
+          wait || true
+
+      - name: Disk load
+        run: dd if=/dev/zero of="$RUNNER_TEMP/blob" bs=1M count=512 oflag=direct status=none
+
+      - name: Network load
+        run: curl -sSLo /dev/null https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz && sleep 4
+
+      - name: Collect this run (dry run)
+        uses: ./collect
+        with:
+          run_id: ${{ github.run_id }}
+
+  check-event:
+    needs: run-action
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the event in the log of run-action
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          job_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs" \
+            -q '.jobs[] | select(.name == "run-action") | .id')
+          curl -sSfL -H "Authorization: Bearer $GH_TOKEN" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/logs" > log.txt
+          sed -E 's/^[0-9TZ:.-]+ //' log.txt \
+            | sed -n '/ci_job_resources event:/,/^}$/p' | tail -n +2 > event.json
+          jq '.properties | {cpu_cores, cores_busy_avg, mem_peak_mb, disk_write_mb, net_rx_mb, steps: [.steps[].name], top_processes: (.top_processes // [] | .[0:3])}' event.json
+          jq -e '
+            .event == "ci_job_resources"
+            and .properties.cores_busy_avg > 0
+            and .properties.mem_peak_mb > 0
+            and .properties.disk_write_mb >= 400
+            and .properties.net_rx_mb > 1
+            and ([.properties.steps[].name] | index("CPU load")) != null
+            and (.properties.top_processes | length) > 0
+          ' event.json
