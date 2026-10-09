@@ -3,7 +3,8 @@
 --   does_not_fit  the median peak memory on the source label is above 90% of the label's memory
 --   calibrated    the source and target labels both have a speed factor
 --   uncalibrated  one of them has no speed factor
--- An estimate is the source label's median job duration plus the step changes of
+-- An estimate is the time outside steps (the source label's median job duration minus the sum of
+-- step medians, at least 0) plus the sum of the target label's step estimates from
 -- ci_step_tradeoffs; a job with no step data has no estimate. Estimates are unreliable when the
 -- source runs used swap or had more than 20% I/O wait. Measured labels other than the source
 -- label, with a measured p50 above 0, also get the estimate as a backtest.
@@ -22,7 +23,8 @@ deltas AS (
         repo,
         job_key,
         target_label,
-        sum(estimate_s - t_s) AS delta_s,
+        sum(t_s) AS t_s,
+        sum(estimate_s) AS estimate_s,
         count() AS steps
     FROM ci_step_tradeoffs AS step_tradeoffs
     GROUP BY repo, job_key, target_label
@@ -38,7 +40,7 @@ pairs AS (
         ifNull(target_stats.runs, 0) AS runs,
         target_stats.duration_p50_s AS measured_p50_s,
         target_stats.duration_p90_s AS measured_p90_s,
-        if(ifNull(deltas.steps, 0) > 0, source_stats.duration_p50_s + deltas.delta_s, NULL) AS estimate_s,
+        if(ifNull(deltas.steps, 0) > 0, greatest(0, source_stats.duration_p50_s - deltas.t_s) + deltas.estimate_s, NULL) AS estimate_s,
         source_stats.mem_peak_mb_p50 > 0.9 * tgt_label.mem_total_mb AS too_big,
         src_label.k IS NOT NULL AND tgt_label.k IS NOT NULL AS calibrated,
         source_stats.swap_peak_mb_max > 0 OR source_stats.iowait_pct_p50 > 20 AS strained,

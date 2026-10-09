@@ -72,8 +72,9 @@ t' = t × [ w + (1 − w) × ((1 − p) + p × Nₛ/Nₜ) × kₛ/kₜ ]
 ```
 
 `N` is the vCPU count and `k` the per-core speed factor of a label (1 for the baseline label and
-for labels without benchmark pairs). The job estimate is the source label's median job duration
-plus the step changes. The cost is the estimate in whole minutes times the label's price. Queue
+for labels without benchmark pairs). The job estimate is the time outside steps (the source
+label's median job duration minus the sum of the step medians `t`, at least 0) plus the sum of
+the step estimates `t'`. The cost is the estimate in whole minutes times the label's price. Queue
 time is measured only.
 
 `k` of a label is the median of baseline time / label time over single-threaded steps (at most
