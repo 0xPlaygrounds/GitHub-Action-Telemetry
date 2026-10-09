@@ -123,6 +123,23 @@ The bundles are committed, so run `npm run all` before you commit. The `proc-tra
 builds `dist/proc-tracer/proc-tracer-{x64,arm64}` from `proc-tracer/` and attests them; check a
 binary with `gh attestation verify dist/proc-tracer/proc-tracer-x64 -R 0xPlaygrounds/GitHub-Action-Telemetry`.
 
+## Release
+
+Merge pull requests into `master` with Conventional Commit titles (`feat:`, `fix:`, `docs:`,
+`chore:`, and so on). Each merge updates a draft GitHub release and labels the pull request; see
+[.github/release-drafter.yml](.github/release-drafter.yml) for the category and version mapping.
+
+To cut a release:
+
+1. Bump the `version` field in `package.json` (and add an entry to [CHANGELOG.md](CHANGELOG.md))
+   in a pull request, and merge it.
+2. Open the draft release on the
+   [Releases page](https://github.com/0xPlaygrounds/GitHub-Action-Telemetry/releases), check the
+   generated notes, and publish it.
+3. Publishing moves the major tag (for example `v3` for `v3.1.0`) to the release commit. If
+   `package.json`'s version does not match the release tag, the workflow fails with an error
+   instead of moving the tag.
+
 ## License
 
 [Apache License 2.0](LICENSE.md). See [NOTICE](NOTICE).
