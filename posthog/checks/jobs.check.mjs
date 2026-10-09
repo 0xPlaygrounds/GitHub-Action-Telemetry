@@ -51,7 +51,8 @@ test(
           workflow: 'Runner benchmark',
           runs: 1,
           duration_p50_s: 50,
-          normal_runs: 0
+          normal_runs: 0,
+          last_run_at: '2026-10-04T10:00:00Z'
         },
         {
           runner_label: 'small',
@@ -63,7 +64,8 @@ test(
           swap_peak_mb_max: 32,
           iowait_pct_p50: 7,
           normal_runs: 3,
-          last_normal_run_at: '2026-10-03T10:00:00Z'
+          last_normal_run_at: '2026-10-03T10:00:00Z',
+          last_run_at: '2026-10-03T10:00:00Z'
         }
       ],
       ['runner_label']
@@ -75,6 +77,7 @@ test(
   'ci_job_sources picks the source and the current label',
   checkOptions,
   async () => {
+    const epoch = raw("toDateTime('1970-01-01 00:00:00')")
     const stats = fixture(
       [
         'repo',
@@ -83,29 +86,16 @@ test(
         'workflow',
         'runs',
         'normal_runs',
-        'last_normal_run_at'
+        'last_normal_run_at',
+        'last_run_at'
       ],
       [
-        ['o/r', 'build', 'small', 'CI', 3, 3, at(3)],
-        [
-          'o/r',
-          'build',
-          'big',
-          'Runner benchmark',
-          3,
-          0,
-          raw("toDateTime('1970-01-01 00:00:00')")
-        ],
-        ['o/r', 'build', 'fast', 'CI fast', 1, 1, at(5)],
-        [
-          'o/r',
-          'bench',
-          'big',
-          'Runner benchmark',
-          2,
-          0,
-          raw("toDateTime('1970-01-01 00:00:00')")
-        ]
+        ['o/r', 'build', 'small', 'CI', 3, 3, at(3), at(3)],
+        ['o/r', 'build', 'big', 'Runner benchmark', 3, 0, epoch, at(4)],
+        ['o/r', 'build', 'fast', 'CI fast', 1, 1, at(5), at(5)],
+        ['o/r', 'bench', 'big', 'Runner benchmark', 2, 0, epoch, at(2)],
+        ['o/r', 'flaky', 'alpha', 'Alpha WF', 2, 0, epoch, at(1)],
+        ['o/r', 'flaky', 'zeta', 'Zeta WF', 2, 0, epoch, at(6)]
       ]
     )
     const sql = withFixtures(readView('ci_job_sources', options), {
@@ -127,6 +117,13 @@ test(
           current_label: 'fast',
           normal_runs: 4,
           workflow: 'CI fast'
+        },
+        {
+          job_key: 'flaky',
+          source_label: 'zeta',
+          current_label: '',
+          normal_runs: 0,
+          workflow: 'Zeta WF'
         }
       ],
       ['job_key']
