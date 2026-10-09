@@ -10,6 +10,7 @@
     "format-check": "prettier --check \"**/*.{ts,mjs}\"",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:posthog": "node --test \"posthog/checks/*.check.mjs\"",
     "package:main": "ncc build --source-map src/main.ts --out dist/main",
     "package:post": "ncc build --source-map src/post.ts --out dist/post",
     "package:collect": "ncc build --source-map src/collect.ts --out collect/dist",

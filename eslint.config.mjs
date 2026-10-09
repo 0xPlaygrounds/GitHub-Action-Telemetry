@@ -4,7 +4,14 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist/', 'collect/dist/', 'lib/', 'node_modules/', 'proc-tracer/']
+    ignores: [
+      'dist/',
+      'collect/dist/',
+      'lib/',
+      'node_modules/',
+      'proc-tracer/',
+      'posthog/canvas/'
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -26,5 +33,9 @@ export default tseslint.config(
       '@typescript-eslint/promise-function-async': 'error'
     }
   },
-  { files: ['**/*.mjs'], ...tseslint.configs.disableTypeChecked }
+  { files: ['**/*.mjs'], ...tseslint.configs.disableTypeChecked },
+  {
+    files: ['**/*.mjs'],
+    rules: { '@typescript-eslint/explicit-function-return-type': 'off' }
+  }
 )
