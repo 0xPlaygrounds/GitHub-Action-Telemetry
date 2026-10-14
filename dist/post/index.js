@@ -37996,7 +37996,7 @@ function generateUsageTable(steps, cores) {
     ].join('\n');
 }
 function stepTracer_report(job, steps, cores) {
-    return (generateTraceChartForSteps(job) + '\n' + generateUsageTable(steps, cores));
+    return `${generateTraceChartForSteps(job)}\n${generateUsageTable(steps, cores)}`;
 }
 
 ;// CONCATENATED MODULE: ./src/post.ts

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { VIEWS, readView } from './sql.mjs'
+import { readView, VIEWS, type RenderOptions } from './sql.ts'
+import type { Api } from './api.ts'
 
 const COMPONENT_NAME = 'Runner trade-offs'
 const GRID_NAME = 'CI runners'
@@ -11,7 +12,51 @@ const COMPONENT_DEPENDENCIES = [
   'lucide-react',
   'recharts'
 ]
-const FALLBACK_PROJECT = {
+
+export interface ComponentProject {
+  schemaVersion: 1
+  entryHtml: string
+  files: Record<string, string>
+  dependencies: Record<string, string>
+  canvasSdkVersion: string
+  capabilities: {
+    posthog: {
+      insights: unknown[]
+      inlineQueries: boolean
+      captureEvents: unknown[]
+      state: string[]
+      actions: unknown[]
+      agentRequests: boolean
+    }
+    network: { origins: unknown[] }
+  }
+  component: {
+    size: { defaultW: number; defaultH: number; minW: number; minH: number }
+    configSchema: {
+      type: string
+      properties: Record<string, { type: string; description: string }>
+    }
+  }
+}
+
+// The shape of a project as it comes back from the API: it may be an older or partial version of
+// what componentProject() builds, so only the fields we read are typed; everything else is unknown.
+export interface StoredProject {
+  entryHtml?: string
+  files?: Record<string, string>
+  dependencies?: Record<string, string>
+  canvasSdkVersion?: string
+  capabilities?: unknown
+  component?: unknown
+  [key: string]: unknown
+}
+
+const FALLBACK_PROJECT: Required<
+  Pick<
+    StoredProject,
+    'entryHtml' | 'files' | 'dependencies' | 'canvasSdkVersion'
+  >
+> = {
   entryHtml: 'index.html',
   files: {
     'index.html':
@@ -27,29 +72,38 @@ const FALLBACK_PROJECT = {
   canvasSdkVersion: '0.2.0'
 }
 
-const canvasFile = path =>
+const canvasFile = (path: string): string =>
   readFileSync(
     new URL(`../canvas/runner-tradeoffs/${path}`, import.meta.url),
     'utf8'
   )
 
+export interface CanvasSource {
+  project?: StoredProject | null
+  current_version_id?: string | null
+}
+
 // The shell and the dependency pins come from the canvas's current source, so they match the
 // platform's supported versions; a canvas with no source yet uses the fallback.
-export function componentProject(source, { windowDays, baselineLabel }) {
-  const base = source?.project?.files?.['index.html']
-    ? source.project
-    : FALLBACK_PROJECT
+export function componentProject(
+  source: CanvasSource | null | undefined,
+  { windowDays, baselineLabel }: RenderOptions
+): ComponentProject {
+  const projectSource = source?.project
+  const hasIndexHtml = Boolean(projectSource?.files?.['index.html'])
+  const base = hasIndexHtml && projectSource ? projectSource : FALLBACK_PROJECT
+  const files = base.files ?? FALLBACK_PROJECT.files
   const dependencies = Object.fromEntries(
     Object.entries({
       ...FALLBACK_PROJECT.dependencies,
-      ...base.dependencies
+      ...(base.dependencies ?? {})
     }).filter(([name]) => COMPONENT_DEPENDENCIES.includes(name))
   )
   return {
     schemaVersion: 1,
     entryHtml: base.entryHtml ?? 'index.html',
     files: {
-      'index.html': base.files['index.html'],
+      'index.html': files['index.html'] ?? '',
       'src/canvas.tsx': canvasFile('src/canvas.tsx'),
       'src/view.js': canvasFile('src/view.js'),
       'src/settings.js': `export const WINDOW_DAYS = ${windowDays}\nexport const BASELINE_LABEL = ${JSON.stringify(baselineLabel)}\n`
@@ -79,8 +133,7 @@ export function componentProject(source, { windowDays, baselineLabel }) {
           },
           workflow: {
             type: 'string',
-            description:
-              'Workflow to show; when empty, each viewer picks one'
+            description: 'Workflow to show; when empty, each viewer picks one'
           }
         }
       }
@@ -88,26 +141,41 @@ export function componentProject(source, { windowDays, baselineLabel }) {
   }
 }
 
+// The default sort order: matches Array#sort() with no compare function (string, code unit order).
+const ordinal = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+
 // Deep-equality check that ignores key order, so a rebuilt project that differs only in property
 // insertion order still counts as unchanged.
-function sameJson(a, b) {
+function sameJson(a: unknown, b: unknown): boolean {
   if (a === b) return true
-  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+  if (
+    typeof a !== 'object' ||
+    a === null ||
+    typeof b !== 'object' ||
+    b === null
+  ) {
     return false
   }
   if (Array.isArray(a) !== Array.isArray(b)) return false
-  if (Array.isArray(a)) {
-    return a.length === b.length && a.every((value, index) => sameJson(value, b[index]))
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return (
+      a.length === b.length &&
+      a.every((value, index) => sameJson(value, b[index]))
+    )
   }
-  const aKeys = Object.keys(a).sort()
-  const bKeys = Object.keys(b).sort()
+  const aRecord = a as Record<string, unknown>
+  const bRecord = b as Record<string, unknown>
+  const aKeys = Object.keys(aRecord).sort(ordinal)
+  const bKeys = Object.keys(bRecord).sort(ordinal)
   if (aKeys.length !== bKeys.length) return false
-  return aKeys.every((key, index) => key === bKeys[index] && sameJson(a[key], b[key]))
+  return aKeys.every(
+    (key, index) => key === bKeys[index] && sameJson(aRecord[key], bRecord[key])
+  )
 }
 
 // True when every key we sent is present in the stored value with an equal value: nested objects
 // recurse the same way, arrays must match exactly, and extra keys the server adds are ignored.
-export function containsJson(stored, sent) {
+export function containsJson(stored: unknown, sent: unknown): boolean {
   if (sent === stored) return true
   if (
     typeof sent !== 'object' ||
@@ -117,65 +185,147 @@ export function containsJson(stored, sent) {
   ) {
     return false
   }
-  if (Array.isArray(sent) || Array.isArray(stored)) return sameJson(stored, sent)
-  return Object.keys(sent).every(key => containsJson(stored[key], sent[key]))
+  if (Array.isArray(sent) || Array.isArray(stored))
+    return sameJson(stored, sent)
+  const sentRecord = sent as Record<string, unknown>
+  const storedRecord = stored as Record<string, unknown>
+  return Object.keys(sentRecord).every(key =>
+    containsJson(storedRecord[key], sentRecord[key])
+  )
 }
 
-async function findCanvas(api, channelId, kind, name) {
-  const list = await api.get(
+export interface CanvasListItem {
+  id: string
+  name: string
+  kind?: string
+  url?: string
+}
+
+interface CanvasListResponse {
+  results?: CanvasListItem[]
+}
+
+async function findCanvas(
+  api: Api,
+  channelId: string,
+  kind: string,
+  name: string
+): Promise<CanvasListItem | null> {
+  const list = (await api.get(
     `/canvases/?channel=${encodeURIComponent(channelId)}&kind=${kind}&limit=100`
-  )
+  )) as CanvasListResponse
   return (list.results ?? []).find(canvas => canvas.name === name) ?? null
 }
 
-export async function upsertComponent(api, { channelId, settings }, log = console.log) {
+export type Logger = (message: string) => void
+
+export interface UpsertComponentOptions {
+  channelId: string
+  settings: RenderOptions
+}
+
+export interface PublishResult {
+  build?: { status?: string; [key: string]: unknown }
+}
+
+export async function upsertComponent(
+  api: Api,
+  { channelId, settings }: UpsertComponentOptions,
+  log: Logger = console.log
+): Promise<string> {
   const canvas =
     (await findCanvas(api, channelId, 'component', COMPONENT_NAME)) ??
-    (await api.post('/canvases/', {
+    ((await api.post('/canvases/', {
       name: COMPONENT_NAME,
       channel_id: channelId,
       kind: 'component',
       description:
         'CI job duration and cost on each runner label, measured or estimated from CPU use. ' +
         'Config: repo and workflow filters.'
-    }))
-  const source = await api.get(`/canvases/${canvas.id}/source/`)
+    })) as CanvasListItem)
+  const source = (await api.get(
+    `/canvases/${canvas.id}/source/`
+  )) as CanvasSource | null
   const project = componentProject(source, settings)
-  const exactKeys = ['files', 'dependencies', 'canvasSdkVersion']
-  const containedKeys = ['capabilities', 'component']
+  const exactKeys: Array<keyof ComponentProject> = [
+    'files',
+    'dependencies',
+    'canvasSdkVersion'
+  ]
+  const containedKeys: Array<keyof ComponentProject> = [
+    'capabilities',
+    'component'
+  ]
   const unchanged =
-    source?.project &&
-    exactKeys.every(key => sameJson(project[key], source.project[key])) &&
-    containedKeys.every(key => containsJson(source.project[key], project[key]))
+    Boolean(source?.project) &&
+    exactKeys.every(key => sameJson(project[key], source?.project?.[key])) &&
+    containedKeys.every(key =>
+      containsJson(source?.project?.[key], project[key])
+    )
   if (unchanged) {
     log(`${COMPONENT_NAME}: unchanged (${canvas.url ?? canvas.id})`)
     return canvas.id
   }
-  const published = await api.post(`/canvases/${canvas.id}/publish/`, {
+  const published = (await api.post(`/canvases/${canvas.id}/publish/`, {
     project,
     prompt: 'Install Runner trade-offs from GitHub-Action-Telemetry',
     expected_current_version_id: source?.current_version_id ?? null
-  })
+  })) as PublishResult
   const status = published?.build?.status ?? 'unknown'
   if (status === 'failed') {
     throw new Error(
       `The canvas build failed: ${JSON.stringify(published.build)}`
     )
   }
-  log(`${COMPONENT_NAME}: published, build ${status} (${canvas.url ?? canvas.id})`)
+  log(
+    `${COMPONENT_NAME}: published, build ${status} (${canvas.url ?? canvas.id})`
+  )
   return canvas.id
 }
 
-export async function ensureGrid(api, { channelId, componentId }, log = console.log) {
+export interface Placement {
+  id: string
+  status: string
+  component: string
+  x: number
+  y: number
+  w: number
+  h: number
+  config: Record<string, unknown>
+}
+
+export interface GridLayout {
+  schemaVersion?: number
+  grid?: { columns: number; rowHeight: number; gap: number }
+  placements?: Placement[]
+}
+
+export interface CanvasLayoutResponse {
+  layout?: GridLayout | null
+  current_version_id?: string | null
+}
+
+export interface EnsureGridOptions {
+  channelId: string
+  componentId: string
+}
+
+export async function ensureGrid(
+  api: Api,
+  { channelId, componentId }: EnsureGridOptions,
+  log: Logger = console.log
+): Promise<string> {
   const grid =
     (await findCanvas(api, channelId, 'grid', GRID_NAME)) ??
-    (await api.post('/canvases/', {
+    ((await api.post('/canvases/', {
       name: GRID_NAME,
       channel_id: channelId,
       kind: 'grid',
       description: 'CI runner trade-offs'
-    }))
-  const current = await api.get(`/canvases/${grid.id}/layout/`)
+    })) as CanvasListItem)
+  const current = (await api.get(
+    `/canvases/${grid.id}/layout/`
+  )) as CanvasLayoutResponse | null
   const layout = current?.layout ?? null
   const placements = layout?.placements ?? []
   const existing = placements.find(placement => placement.id === PLACEMENT_ID)
@@ -184,7 +334,7 @@ export async function ensureGrid(api, { channelId, componentId }, log = console.
     return 'unchanged'
   }
   const bottom = Math.max(0, ...placements.map(p => p.y + p.h))
-  const nextPlacements = existing
+  const nextPlacements: Placement[] = existing
     ? placements.map(placement =>
         placement.id === PLACEMENT_ID
           ? { ...placement, component: componentId }
@@ -217,10 +367,24 @@ export async function ensureGrid(api, { channelId, componentId }, log = console.
   return status
 }
 
-export async function upsertView(api, name, sql) {
-  const list = await api.get(
+export interface SavedQueryListItem {
+  id: string
+  name: string
+  query?: { query?: string }
+}
+
+interface SavedQueryListResponse {
+  results?: SavedQueryListItem[]
+}
+
+export async function upsertView(
+  api: Api,
+  name: string,
+  sql: string
+): Promise<string> {
+  const list = (await api.get(
     `/warehouse_saved_queries/?search=${encodeURIComponent(name)}`
-  )
+  )) as SavedQueryListResponse
   const existing = (list.results ?? []).find(view => view.name === name)
   const query = { kind: 'HogQLQuery', query: sql }
   if (!existing) {
@@ -232,7 +396,11 @@ export async function upsertView(api, name, sql) {
   return 'updated'
 }
 
-export async function installViews(api, options, log = console.log) {
+export async function installViews(
+  api: Api,
+  options: RenderOptions,
+  log: Logger = console.log
+): Promise<void> {
   for (const name of VIEWS) {
     log(`${name}: ${await upsertView(api, name, readView(name, options))}`)
   }

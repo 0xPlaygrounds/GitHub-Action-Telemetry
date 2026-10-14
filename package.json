@@ -5,12 +5,12 @@
   "type": "module",
   "description": "GitHub Action that collects CPU, memory, disk, network, step, and process telemetry from workflow jobs, shows it in the job summary, and can send it to PostHog",
   "scripts": {
-    "build": "tsc --noEmit",
-    "format": "prettier --write \"**/*.{ts,mjs}\"",
-    "format-check": "prettier --check \"**/*.{ts,mjs}\"",
-    "lint": "eslint .",
+    "build": "tsc --noEmit && tsc -p posthog --noEmit",
+    "format": "biome format --write .",
+    "format-check": "biome format .",
+    "lint": "biome lint .",
     "test": "vitest run",
-    "test:posthog": "node --test \"posthog/checks/*.check.mjs\"",
+    "test:posthog": "node --test \"posthog/checks/*.check.ts\"",
     "package:main": "ncc build --source-map src/main.ts --out dist/main",
     "package:post": "ncc build --source-map src/post.ts --out dist/post",
     "package:collect": "ncc build --source-map src/collect.ts --out collect/dist",
@@ -45,15 +45,11 @@
     "@actions/github": "^9.1.1"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@biomejs/biome": "2.5.15",
     "@octokit/openapi-types": "^29.0.1",
     "@types/node": "^24.19.1",
     "@vercel/ncc": "^0.45.0",
-    "eslint": "^10.12.0",
-    "globals": "^17.13.0",
-    "prettier": "^3.9.9",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.1",
     "vitest": "^5.0.3"
   }
 }

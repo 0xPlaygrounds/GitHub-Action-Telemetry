@@ -12,7 +12,14 @@ export const checkOptions = {
       : 'Set POSTHOG_PERSONAL_API_KEY and POSTHOG_PROJECT_ID to run the SQL checks'
 }
 
-export async function runQuery(sql) {
+export type Row = Record<string, string | number | boolean | null>
+
+interface QueryResponse {
+  results: unknown[][]
+  columns: string[]
+}
+
+export async function runQuery(sql: string): Promise<Row[]> {
   const response = await fetch(`${host}/api/projects/${projectId}/query/`, {
     method: 'POST',
     headers: {
@@ -22,23 +29,30 @@ export async function runQuery(sql) {
     body: JSON.stringify({ query: { kind: 'HogQLQuery', query: sql } }),
     signal: AbortSignal.timeout(60_000)
   })
-  const body = await response.json()
+  const body: unknown = await response.json()
   if (!response.ok) {
     throw new Error(
       `Query failed with HTTP ${response.status}: ${JSON.stringify(body)}\n${sql}`
     )
   }
-  return body.results.map(row =>
-    Object.fromEntries(
-      body.columns.map((column, index) => [column, row[index]])
-    )
+  const { results, columns } = body as QueryResponse
+  return results.map(
+    row =>
+      Object.fromEntries(
+        columns.map((column, index) => [column, row[index]])
+      ) as Row
   )
 }
 
-const sortKey = (row, keys) => keys.map(key => String(row[key])).join('\u0000')
+const sortKey = (row: Row, keys: string[]): string =>
+  keys.map(key => String(row[key])).join('\u0000')
 
-export function assertRows(actual, expected, keys) {
-  const sorted = rows =>
+export function assertRows(
+  actual: Row[],
+  expected: Row[],
+  keys: string[]
+): void {
+  const sorted = (rows: Row[]): Row[] =>
     [...rows].sort((a, b) => sortKey(a, keys).localeCompare(sortKey(b, keys)))
   const left = sorted(actual)
   const right = sorted(expected)

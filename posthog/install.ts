@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util'
-import { createApi } from './lib/api.mjs'
-import { ensureGrid, installViews, upsertComponent } from './lib/install.mjs'
+import { createApi } from './lib/api.ts'
+import { ensureGrid, installViews, upsertComponent } from './lib/install.ts'
 
 const { values } = parseArgs({
   options: {
@@ -15,7 +15,7 @@ const apiKey = process.env.POSTHOG_PERSONAL_API_KEY
 if (!values.project || !apiKey) {
   console.error(
     'Usage: POSTHOG_PERSONAL_API_KEY=... [POSTHOG_HOST=https://eu.posthog.com] ' +
-      'node posthog/install.mjs --project <id> ' +
+      'node posthog/install.ts --project <id> ' +
       '[--channel <id>] [--window-days 14] [--baseline ubuntu-latest]'
   )
   process.exit(1)
@@ -28,7 +28,7 @@ const api = createApi({
 })
 const options = {
   windowDays: Number(values['window-days']),
-  baselineLabel: values.baseline
+  baselineLabel: values.baseline ?? 'ubuntu-latest'
 }
 await installViews(api, options)
 if (values.channel) {
