@@ -1,0 +1,69 @@
+# This workflow drafts the next GitHub release and labels pull requests.
+#
+# On push to master, it updates a draft release whose notes list merged pull
+# requests by category; the version comes from the labels on those pull
+# requests (see .github/release-drafter.yml).
+#
+# On pull request open, reopen, synchronize, or edit, it sets labels from the
+# Conventional Commit prefix in the PR title. This job uses
+# pull_request_target so labeling also works for pull requests from forks, but
+# it never checks out or runs PR code.
+name: Release Drafter
+
+on:
+  push:
+    branches:
+      - master
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  update_release_draft:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: release-drafter/release-drafter@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
+
+  autolabel:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Removes managed release labels that do not match the current PR title.
+      # Leaves "dependencies" alone. Reads the title and labels through the
+      # API only.
+      - name: Remove stale Conventional Commit labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: ${{ github.event.pull_request.title }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          expected=""
+          if printf '%s\n' "$TITLE" | grep -qiE '^[a-z]+(\(.+\))?!:'; then
+            expected="breaking"
+          elif printf '%s\n' "$TITLE" | grep -qiE '^feat(\(.+\))?:'; then
+            expected="feature"
+          elif printf '%s\n' "$TITLE" | grep -qiE '^fix(\(.+\))?:'; then
+            expected="fix"
+          elif printf '%s\n' "$TITLE" | grep -qiE '^docs(\(.+\))?:'; then
+            expected="documentation"
+          elif printf '%s\n' "$TITLE" | grep -qiE '^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:'; then
+            expected="maintenance"
+          fi
+
+          current=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -q '.[].name')
+
+          for label in breaking feature fix documentation maintenance; do
+            if [[ "$label" != "$expected" ]] && grep -qxF "$label" <<< "$current"; then
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$label" --silent
+            fi
+          done
+      - uses: release-drafter/release-drafter/autolabeler@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
