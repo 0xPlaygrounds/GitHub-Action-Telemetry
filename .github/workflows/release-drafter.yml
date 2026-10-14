@@ -37,10 +37,9 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      # Removes managed labels that no longer match the current PR title, since
-      # the autolabeler below only adds labels, it never removes them. Skips
-      # "dependencies", which Dependabot manages. Reads only the PR title and
-      # its current labels through the API; it does not check out PR code.
+      # Removes managed release labels that do not match the current PR title.
+      # Leaves "dependencies" alone. Reads the title and labels through the
+      # API only.
       - name: Remove stale Conventional Commit labels
         env:
           GH_TOKEN: ${{ github.token }}
@@ -48,23 +47,23 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           expected=""
-          if echo "$TITLE" | grep -qiE '^[a-z]+(\(.+\))?!:'; then
+          if printf '%s\n' "$TITLE" | grep -qiE '^[a-z]+(\(.+\))?!:'; then
             expected="breaking"
-          elif echo "$TITLE" | grep -qiE '^feat(\(.+\))?:'; then
+          elif printf '%s\n' "$TITLE" | grep -qiE '^feat(\(.+\))?:'; then
             expected="feature"
-          elif echo "$TITLE" | grep -qiE '^fix(\(.+\))?:'; then
+          elif printf '%s\n' "$TITLE" | grep -qiE '^fix(\(.+\))?:'; then
             expected="fix"
-          elif echo "$TITLE" | grep -qiE '^docs(\(.+\))?:'; then
+          elif printf '%s\n' "$TITLE" | grep -qiE '^docs(\(.+\))?:'; then
             expected="documentation"
-          elif echo "$TITLE" | grep -qiE '^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:'; then
+          elif printf '%s\n' "$TITLE" | grep -qiE '^(chore|ci|build|test|refactor|perf|style)(\(.+\))?:'; then
             expected="maintenance"
           fi
 
-          current=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels -q '.labels[].name')
+          current=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -q '.[].name')
 
           for label in breaking feature fix documentation maintenance; do
             if [[ "$label" != "$expected" ]] && grep -qxF "$label" <<< "$current"; then
-              gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label "$label"
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$label" --silent
             fi
           done
       - uses: release-drafter/release-drafter/autolabeler@978bb0b30c5ee8cdd332ced253758157150d43f0 # v7.10.0
