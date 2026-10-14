@@ -23,6 +23,10 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag ($TAG) must look like v3.2.0."
+            exit 1
+          fi
           VERSION="${TAG#v}"
           PKG_VERSION=$(jq -r .version package.json)
           if [[ "$PKG_VERSION" != "$VERSION" ]]; then
